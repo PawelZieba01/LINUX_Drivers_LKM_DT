@@ -8,22 +8,17 @@ MODULE_LICENSE("GPL");
 MODULE_AUTHOR("Paweł Zięba  AGH UST  2024");
 MODULE_DESCRIPTION("Prosty moduł jądra linux");
 
-/*
-* Funkcja wywoływana podczas ładowania modułu do jądra linux
-*/
+/* Funkcja wywoływana podczas ładowania modułu do jądra linux */
 static int __init ModuleInit(void)
 {
-    printk("Hello kernel !!!");
+    printk("Hello kernel !!!\n");
     return 0;
 }
 
-
-/*
-* Funkcja wykonywama podczas usuwania modułu z jądra linux
-*/
+/* Funkcja wykonywana podczas usuwania modułu z jądra linux */
 static void __exit ModuleExit(void)
 {
-    printk("Goodbye kernel !!!");
+    printk("Goodbye kernel !!!\n"); 
 }
 
 
