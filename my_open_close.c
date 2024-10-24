@@ -37,8 +37,8 @@ static struct file_operations fops = {
     .release=ModuleClose
 };
 
-#define MY_MAJOR 0
-#define MY_DEV_NAME "my_dev"
+#define MY_MAJOR 30
+#define MY_DEV_NAME "my_open_close_dev"
 
 /* Funkcja wywoływana podczas ładowania modułu do jądra linux */
 static int __init ModuleInit(void)
