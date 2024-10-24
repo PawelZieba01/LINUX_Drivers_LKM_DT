@@ -97,7 +97,7 @@ Character devices:
 Poniższy fragment kodu przedstawia funkcję inicalizującą modułu, w której rejestrowane jest urządzenie.
 
 ```C
-#define MY_MAJOR 0
+#define MY_MAJOR 30
 #define MY_DEV_NAME "my_open_close_dev"
 
 /* Funkcja wywoływana podczas ładowania modułu do jądra linux */
@@ -147,47 +147,55 @@ Funkcja zwraca numer `MAJOR`, który zarezerowowała (w przypadku gdy podano `0`
 
 ## Weryfikacja działania modułu
 
-Aby zweryfikować czy funkcje `ModuleOpen()` i `ModuleClose` poprawnie się wykonują, należy najpierw stworzyć plik specjalny, który będzie dostępny w przestrzeni użytkownika. Służy do tego polecenie `mknod`:
+Po załadowaniu modułu do jądra za pomocą polecenia `sudo insmod my_open_close.ko` w buforze diagnostycznym pojawiają się następujące komunikaty:
 
 ```console
-pi@pi:~/LINUX_Drivers_LKM_DT $ sudo mknod /dev/my_open_close_dev c 30 0
+pi@pi:~/LINUX_Drivers_LKM_DT $ sudo insmod my_open_close.ko 
+pi@pi:~/LINUX_Drivers_LKM_DT $ dmesg | tail
+...
+[ 2823.480950] my_open_close: Module init.
+[ 2823.480980] my_open_close: Zarejestrowano urządzenie o numerze MAJOR: 30
 ```
 
-
-
-
-
-
-
+w pliku `/proc/devices` powinen znajdować się zaspis z nazwą urządzenia i numerem `MAJOR`:
 
 ```console
 pi@pi:~/LINUX_Drivers_LKM_DT $ cat /proc/devices | grep my
  30 my_open_close_dev
-pi@pi:~/LINUX_Drivers_LKM_DT $ sudo mknod /dev/my_open_close_dev c 30 0
-pi@pi:~/LINUX_Drivers_LKM_DT $ ls /dev/my_open_close_dev -al
-crw-r--r-- 1 root root 30, 0 Oct 21 18:06 /dev/my_open_close_dev
-pi@pi:~/LINUX_Drivers_LKM_DT $ cat /dev/my_open_close_dev
-cat: /dev/my_open_close_dev: Invalid argument
-pi@pi:~/LINUX_Drivers_LKM_DT $ sudo rmmod my_open_close_dev 
-pi@pi:~/LINUX_Drivers_LKM_DT $ dmesg | tail
-...
-[ 9216.109707] my_open_close: Module init.
-[ 9216.109732] my_open_close: Zarejestrowano urządzenie o numerze MAJOR: 30
-[ 9544.969588] my_open_close: Module exit.
-[ 9551.959353] my_open_close: Module init.
-[ 9551.959379] my_open_close: Zarejestrowano urządzenie o numerze MAJOR: 30
-[ 9689.865726] my_open_close: Module device file open.
-[ 9689.868118] my_open_close: Module device file close.
-[ 9766.854713] my_open_close: Module exit.
-pi@pi:~/LINUX_Drivers_LKM_DT $ sudo rm -f /dev/my_open_close_dev 
-```
+ ```
 
+Aby zweryfikować czy funkcje `ModuleOpen()` i `ModuleClose()` poprawnie się wykonują, należy najpierw stworzyć plik specjalny, który będzie dostępny w przestrzeni użytkownika i zostanie przypisany do urządzenia. Służy do tego polecenie `mknod`:
 
 ```console
+pi@pi:~/LINUX_Drivers_LKM_DT $ sudo mknod /dev/my_open_close_dev c 30 0
+```
+flaga `c` oznacza, że tworzymy plik specjalny urządzenia znakowego, `30` to zarejestrowany numer `MAJOR` urządzenia, natomiast `0` oznacza numer `MINOR`.
+
+Teraz w folderze `/dev` powinien znajdować się utworzony plik `my_open_close_dev` reprezentujący urządzenie znakowe.
+
+```console
+pi@pi:~/LINUX_Drivers_LKM_DT $ ls -al /dev/my_open_close_dev 
+crw-r--r-- 1 root root 30, 0 Oct 24 09:17 /dev/my_open_close_dev
+```
+
+Znak c przed polami określającymi prawa dostępu do pliku, oznacza, że jest to urządzenie znakowe (ang.`character`), w piątej kolumnie liczba `30` to numer `MAJOR`, natomiast `0` (kolumna 6) to przypisany `MINOR`. 
+
+Teraz można spróbować otworzyć plik urządzenia za pomocą polecenia `cat`.
+
+```console
+pi@pi:~/LINUX_Drivers_LKM_DT $ cat /dev/my_open_close_dev 
+cat: /dev/my_open_close_dev: Invalid argument
 pi@pi:~/LINUX_Drivers_LKM_DT $ dmesg | tail
 ...
-[ 9820.267041] my_open_close: Module init.
-[ 9820.267086] my_open_close: Zarejestrowano urządzenie o numerze MAJOR: 236
+[ 3733.630142] my_open_close: Module device file open.
+[ 3733.632977] my_open_close: Module device file close.
 ```
+
+Polecenie `cat` zwróciło błąd w postaci błędnego argumentu, ponieważ w sterowniku nie zaimplementowano jeszcze możliwości odczytu (zostanie ona dodana w kolejnych przykładach). Pomimo błędu, udało się poprawnie otworzyć i zamknąć plik urządzenia co widać w buforze diagnostycznym.
+
+
+
+
+
 
 
