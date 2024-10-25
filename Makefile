@@ -1,4 +1,4 @@
-obj-m += my_open_close.o
+obj-m += my_read_write.o
 
 # Polecenie uruchamiające proces budowania modułu jądra linux
 # -C oznacza wykoannie polecenia make w podanej ścieżce (ścieżka do plików środowiska buildowania modułów)
