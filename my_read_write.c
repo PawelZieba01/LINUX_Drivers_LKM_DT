@@ -43,19 +43,21 @@ static ssize_t DeviceWrite(struct file *filp, const char *buf, size_t count, lof
 {
     pr_info("Write to device file.\n");
 
-    if(count > BUFF_LENGTH)
+    if(*f_pos >= BUFF_LENGTH)
     {
-        pr_info("Too much data to write!\n");
         return -EINVAL;
     }
-    
+
+    if(*f_pos + count > BUFF_LENGTH)
+    {
+        count = BUFF_LENGTH - *f_pos;
+    }
+
     if( copy_from_user(dev_buffer, buf, count) != 0 )
     {
-        pr_info("Unable to copy data from user space!\n");
         return -EFAULT;
     } 
 
-    pr_info("Saved data: %s\n", dev_buffer);
     return count;
 }
 
