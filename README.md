@@ -1,4 +1,4 @@
-# Prosty moduł jądra linux - LKM
+# Prosty sterownik znakowy
 
 ## Cel zadania
 Stworzyć prosty sterownik znakowy z funkcjami open i close (na razie bez zapisu i odczytu).
