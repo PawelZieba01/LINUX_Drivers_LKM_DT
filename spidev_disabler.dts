@@ -1,0 +1,16 @@
+/dts-v1/;
+/plugin/;
+/* Device Tree overlay for disabling spidev */
+/* Source: https://forums.raspberrypi.com/viewtopic.php?t=151423 */
+
+/ {
+    compatible = "brcm,bcm2708";
+
+    fragment@0 {
+        target = <&spidev0>;
+
+        __overlay__ {
+            status = "disabled";
+        };
+    };
+};
