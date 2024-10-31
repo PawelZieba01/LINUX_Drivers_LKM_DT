@@ -8,6 +8,14 @@ Stworzyć sterownik znakowy dla przetwornika DAC MCP4921 z obsługa interface'u 
 
 **W nowszych wydaniach jądra nie ma funkcji `spi_busnum_to_master()`, przez co aby stworzyć sterownik `SPI` należy użyć mechanizmu DeviceTree (będzie on omówiony w kolejnych przykładach). Z tego powodu to ćwiczenie wykonano dla wersji jądra 5.10.27**
 
+`rpi-update` umożliwia zainstalowanie starszej wersji jądra:   
+https://raspberrypi.stackexchange.com/questions/19959/how-to-get-a-specific-kernel-version-for-raspberry-pi-linux
+
+`rpi-source` pozwoli zainstalować nagłówki kernela dla starszej wersji jądra:   
+https://github.com/RPi-Distro/rpi-source
+
+</br>
+
 Przed załadowaniem modułu do jądra za pomocą polecenia `insmod`, należy jednorazowo skompilować i załadować nakładkę device tree `spidev_disabler.dts`.
 
 ```C
