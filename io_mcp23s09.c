@@ -11,48 +11,65 @@
 */
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("Paweł Zięba  AGH UST  2024");
-MODULE_DESCRIPTION("Sterownik znakowy do obsługi przetwornika DAC MCP4921");
+MODULE_DESCRIPTION("Sterownik znakowy do obsługi ekspandera IO MCP23S09");
 
 /* Dzięki tej definicji, funkcja pr_info doklei na początku każdej wiadomości nazwę naszego modułu */
 #define pr_fmt(fmt) KBUILD_MODNAME ": " fmt
 
-#define MY_DEV_NAME "dac_mcp4921"
+#define MY_DEV_NAME "io_mcp23s09"
 #define MY_CLASS_NAME "my_spi_devices"
 #define SPI_BUS 0
-#define DAC_MCP4921_REF_VOLTAGE_mV 3300
+
+#define IO_WRITE_OPCODE 0x40
+#define IO_READ_OPCODE 0x41
+#define IO_DIR_REG 0x00
+#define IO_GPIO_REG 0x09
 
 static struct class *my_class;
 static struct cdev my_cdev;
 static dev_t my_devt;
 
-static struct spi_device *dac_mcp4921_dev;
+static struct spi_device *io_mcp23s09_dev;
 
-void DAC_MCP4921_Set(unsigned int voltage_12bit)
+void IO_MCP23S09_Set(unsigned char port_value)
 {
-    #define MCP4921_CFG_BITS (0x03 << 12)                //Kanal A, Unbuffered Vref, Gain=1, DAC Enable
-    #define DATA_BUF_LEN 2
-
-    unsigned int data = MCP4921_CFG_BITS | (voltage_12bit & 0x0fff);
-    unsigned char spi_buff[DATA_BUF_LEN];
+    unsigned char spi_buff[6] = {
+        IO_WRITE_OPCODE,
+        IO_DIR_REG,
+        0x00,               /* Ustawienie pinów jako wyjścia */
+        IO_WRITE_OPCODE,
+        IO_GPIO_REG,
+        port_value
+    };
     
-    pr_info("Set voltage to %d (12bit)\n", voltage_12bit);
+    pr_info("Set port value to %x \n", port_value);
 
-    
-    spi_buff[0] = ( (data & 0xff00) >> 8 );
-    spi_buff[1] = ( data & 0x00ff );
 
-    pr_info("Send buffer: %x %x", spi_buff[0], spi_buff[1]);
-
-    spi_write(dac_mcp4921_dev, spi_buff, DATA_BUF_LEN);
+    spi_write(io_mcp23s09_dev, &spi_buff[0], 3);    /* Ustawienie pinów jako wyjścia */
+    spi_write(io_mcp23s09_dev, &spi_buff[3], 3);    /* Ustawienie wartości pinów */
 }
 
 
-void DAC_MCP4921_Set_mV(unsigned int voltage_mV)
+
+
+int IO_MCP23S09_Get(void)
 {
-    #define BINARY_VAL_FOR_1mV 0x9ee0       /* unsigned Q1.15 -> 1,2412     (1mV to wartość 1,2412 dla przetwornika) */
-    unsigned int voltage_12bit = ( ((unsigned long)voltage_mV * (unsigned long)BINARY_VAL_FOR_1mV)>>15 );    /* Konwersja Q16.15 do Q16.0 */
-    pr_info("%d", voltage_12bit);
-    DAC_MCP4921_Set(voltage_12bit);
+    unsigned char spi_tx_buff[5] = {
+        IO_WRITE_OPCODE,
+        IO_DIR_REG,
+        0xff,               /* Ustawienie pinów jako wejścia */
+        IO_READ_OPCODE,
+        IO_GPIO_REG
+    };
+
+    unsigned char spi_rx_buff[] = {0};
+
+    pr_info("Get port value.\n");
+
+    spi_write_then_read(io_mcp23s09_dev, &spi_tx_buff[0], 3, 0, 0);                 /* Ustawienie pinów jako wejścia */
+    spi_write_then_read(io_mcp23s09_dev, &spi_tx_buff[3], 2, &spi_rx_buff[0], 1);   /* Odczyt danych */
+
+    return spi_rx_buff[0];
 }
 
 
@@ -70,13 +87,51 @@ static int DeviceClose(struct inode *device_file, struct file *instance)
     return 0;
 }
 
+/* Funkcja wywoływana podczas czytania z pliku urządzenia */
+static ssize_t DeviceRead(struct file *filp, char *buf, size_t count, loff_t *f_pos)
+{
+    #define BUFF_LEN 6
+    
+    unsigned char port_value; 
+    unsigned char port_buf[BUFF_LEN];
+
+    pr_info("Read from device file.\n");
+
+    port_value = IO_MCP23S09_Get();
+    if(port_value < 0)
+    {
+        pr_info("Can't get port value.\n");
+        return port_value;
+    }
+
+    sprintf(port_buf, "0x%X\n", port_value);
+
+    if(*f_pos >= BUFF_LEN)
+    {
+        return 0; /*EOF*/
+    }
+
+    if(*f_pos + count > BUFF_LEN)
+    {
+        count = BUFF_LEN - *f_pos;
+    }
+
+    if( copy_to_user(buf, port_buf, BUFF_LEN) != 0)
+    {
+        return -EIO;
+    }
+   
+    *f_pos += count;
+    return count;
+}
+
 /* Funkcja wywoływana podczas zapisywania do pliku urządzenia */
 static ssize_t DeviceWrite(struct file *filp, const char *buf, size_t count, loff_t *f_pos)
 {
     #define MAX_WRITE_SIZE 5    /* 4 znaki na liczbę i jeden znak Null */
 
     char kspace_buffer[MAX_WRITE_SIZE];
-    int voltage_mV, ret_val;
+    int port_value, ret_val;
 
     pr_info("Write to device file.\n");
 
@@ -88,24 +143,24 @@ static ssize_t DeviceWrite(struct file *filp, const char *buf, size_t count, lof
 
     if( copy_from_user(kspace_buffer, buf, count) )
     {
-        pr_info("Can't copy data from user space\n");
+        pr_info("Can't copy data from user space.\n");
         return -EFAULT;		
     }
 
-    ret_val = kstrtol(kspace_buffer, 0, (long*)&voltage_mV);
+    ret_val = kstrtol(kspace_buffer, 0, (long*)&port_value);
     if(ret_val)
     {
-        pr_info("Can't convert data to integer\n");
+        pr_info("Can't convert data to integer.\n");
         return ret_val;
     }
 
-    if(voltage_mV < 0    ||   voltage_mV > DAC_MCP4921_REF_VOLTAGE_mV)
+    if(port_value < 0    ||   port_value > 255)
     {
-        pr_info("Bad voltage value\n");
+        pr_info("Bad port value.\n");
         return -EINVAL;
     }
 
-    DAC_MCP4921_Set_mV(voltage_mV);
+    IO_MCP23S09_Set(port_value);
 
     return count;
 }
@@ -116,7 +171,8 @@ static struct file_operations fops = {
     .owner=THIS_MODULE,
     .open=DeviceOpen,
     .release=DeviceClose,
-    .write=DeviceWrite
+    .write=DeviceWrite,
+    .read=DeviceRead
 };
 
 
@@ -127,7 +183,7 @@ static int __init ModuleInit(void)
 
     /* Struktura zawierająca konfigurację spi*/
     struct spi_board_info spi_dev_info = {
-        .modalias = "mcp4921",
+        .modalias = "mcp23s09",
         .max_speed_hz = 100000,
         .bus_num = SPI_BUS,
         .chip_select = 0,
@@ -140,25 +196,25 @@ static int __init ModuleInit(void)
     master = spi_busnum_to_master(SPI_BUS);
     if(!master)
     {
-        pr_info("Cannot find spi bus with number %d\n", SPI_BUS);
+        pr_info("Cannot find spi bus with number %d.\n", SPI_BUS);
         return -EIO;
     }
 
     /*Utworzenie urządzenia SPI*/
-    dac_mcp4921_dev = spi_new_device(master, &spi_dev_info);
-    if(!dac_mcp4921_dev)
+    io_mcp23s09_dev = spi_new_device(master, &spi_dev_info);
+    if(!io_mcp23s09_dev)
     {
-        pr_info("Cannot create device\n");
+        pr_info("Cannot create device.\n");
         return -EIO;
     }
 
-    dac_mcp4921_dev->bits_per_word = 8;
+    io_mcp23s09_dev->bits_per_word = 8;
 
     /* Skonfigurowanie magistrali spi do komunikacji z urządzeniem*/
-    if(spi_setup(dac_mcp4921_dev) != 0)
+    if(spi_setup(io_mcp23s09_dev) != 0)
     {
-        pr_info("Cannot set bus configuration");
-        spi_unregister_device(dac_mcp4921_dev);
+        pr_info("Can't set bus configuration.");
+        spi_unregister_device(io_mcp23s09_dev);
         return -EIO;
     }
 
@@ -178,7 +234,7 @@ static int __init ModuleInit(void)
     device_create(my_class, NULL, my_devt, NULL, MY_DEV_NAME);
 
 
-    pr_info("Alocated device MAJOR number: %d\n", MAJOR(my_devt));
+    pr_info("Alocated device MAJOR number: %d.\n", MAJOR(my_devt));
     return 0;
 }
 
@@ -188,9 +244,9 @@ static void __exit ModuleExit(void)
     pr_info("Module exit.\n"); 
 
     /* Usunięcie urządzenia spi */
-    if(dac_mcp4921_dev)
+    if(io_mcp23s09_dev)
     {
-        spi_unregister_device(dac_mcp4921_dev);
+        spi_unregister_device(io_mcp23s09_dev);
     }
     
     /* Usunięcie pliku urządzenia z przestrzeni użytkownika */

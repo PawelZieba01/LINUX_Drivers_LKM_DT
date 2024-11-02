@@ -1,4 +1,4 @@
-# Sterownik znakowy przetwornika DAC MCP4921
+# Sterownik znakowy ekspandera IO MCP23S09
 
 ## Cel zadania
 Stworzyć sterownik znakowy dla przetwornika DAC MCP4921 z obsługa interface'u SPI
