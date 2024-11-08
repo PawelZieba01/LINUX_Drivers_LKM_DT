@@ -3,6 +3,7 @@
 *.mod
 *.mod.c
 *.o
+*.d
 *.order
 *.symvers
 backlog.txt
