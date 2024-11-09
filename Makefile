@@ -1,4 +1,4 @@
-obj-m += io_mcp23s09.o
+obj-m += mtm_module.o
 
 # Polecenie uruchamiające proces budowania modułu jądra linux
 # -C oznacza wykoannie polecenia make w podanej ścieżce (ścieżka do plików środowiska buildowania modułów)
