@@ -15,8 +15,6 @@ void DAC_MCP4921_Set(unsigned int voltage_12bit)
     spi_buff[0] = ( (data & 0xff00) >> 8 );
     spi_buff[1] = ( data & 0x00ff );
 
-    pr_info("Send buffer: %x %x", spi_buff[0], spi_buff[1]);
-
     spi_write(dac_mcp4921_dev, spi_buff, DATA_BUF_LEN);
 }
 
