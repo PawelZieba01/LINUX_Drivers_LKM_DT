@@ -1,4 +1,2 @@
-# Device Tree Basic
+# Device Tree sterownik MCP4921
 
-Ta gałąź zawiera rozwiązanie do kolokwium 4_DrzewoUrządzeń z przedmiotu aghmtmlinux
-Zmodyfikowano sposób kojarzenia sterowników z urżadzeniem DT na dopasowanie na podstawie 'compatible'
