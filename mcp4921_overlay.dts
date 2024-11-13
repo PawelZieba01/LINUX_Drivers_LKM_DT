@@ -4,6 +4,7 @@
 
 / {
         compatible = "brcm,bcm2835";
+        //Wyłączenie urządzenia spidev0 - zwolnienie sprzętowego pinu CS0
         fragment@0 {
                 target = <&spidev0>;
                 __overlay__ {

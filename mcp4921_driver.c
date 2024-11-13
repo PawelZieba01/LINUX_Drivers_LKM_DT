@@ -6,13 +6,13 @@
 
 static int mtm_probe(struct spi_device *dev)
 {
-        dev_info(&dev->dev, "probed\n");
+        dev_info(&dev->dev, "SPI DAC Driver Probed\n");
         return 0;
 }
 
 static int mtm_remove(struct spi_device *dev)
 {
-        dev_info(&dev->dev, "removed\n");
+        dev_info(&dev->dev, "SPI DAC Driver Removed\n");
         return 0;
 }
 
@@ -28,7 +28,7 @@ MODULE_DEVICE_TABLE(of, mtm_of_id);                     //platform - dopasowuje 
 
 
 // static const struct spi_device_id my_dac[] = {
-//         {"my_dacc", 0},
+//         {"my_dac", 0},
 //         {},
 // };
 
