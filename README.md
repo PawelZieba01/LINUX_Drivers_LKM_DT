@@ -1,4 +1,5 @@
 # Device Tree sterownik MCP4921
+Sterownik udostępniający do przestrzeni użytkownika plik atrybutu, dzięki któremu można sterować napięciem na wyjściu DAC'a
 
 Plik atrybutu urządzenia jest dostępny tutaj:   
 `/sys/bus/spi/drivers/my_dac/spi0.0/dac_voltage_mV`
