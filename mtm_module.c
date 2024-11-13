@@ -50,7 +50,7 @@ static const struct of_device_id mtm_of_id[] = {
 };
 
 //MODULE_DEVICE_TABLE(platform, mtm_id);        //platform - dopasowuje sterownik po nazwie
-MODULE_DEVICE_TABLE(of, mtm_of_id);             //platform - dopasowuje sterownik po compatible
+MODULE_DEVICE_TABLE(of, mtm_of_id);             //of - dopasowuje sterownik po compatible
 
 static struct platform_driver mtm_driver = {
         //.id_table = mtm_id,
