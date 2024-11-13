@@ -31,29 +31,8 @@ void DAC_MCP4921_Set_mV(unsigned int voltage_mV)
 }
 
 
-/*----- Parametr modułu przeznaczony do zapisu -----*/
-static long int dac_voltage_mV = 0;
+/*----- Funkcje do obsługi urządzenia znakowego -----*/
 
-static ssize_t dac_voltage_mV_store(struct device *dev, struct device_attribute *attr, const char *buf, size_t count)
-{
-    int res;
-
-    res = kstrtol(buf, 0, &dac_voltage_mV);
-    if(res)     //Jeśli wystąpi bład podczas konwersji
-    {
-        return res;
-    }
-    
-    if(dac_voltage_mV < 0   ||   dac_voltage_mV > 3300)
-    {
-        return -EINVAL;
-    }
-
-    DAC_MCP4921_Set_mV(dac_voltage_mV);
-    return count;
-}
-
-DEVICE_ATTR_WO(dac_voltage_mV);
 /*---------------------------------------------------*/
 
 
@@ -65,8 +44,6 @@ static int mtm_probe(struct spi_device *dev)
 
         dac_mcp4921_dev = dev;
         
-        /* Utworzenie pliku reprezentującego atrybut w przestrzeni użytkownika */
-        device_create_file(&dev->dev, &dev_attr_dac_voltage_mV);
 
         return 0;
 }
@@ -74,6 +51,7 @@ static int mtm_probe(struct spi_device *dev)
 static int mtm_remove(struct spi_device *dev)
 {
         dev_info(&dev->dev, "SPI DAC Driver Removed\n");
+        
         return 0;
 }
 
