@@ -1,8 +1,18 @@
-#include <linux/of.h>
-#include <linux/platform_device.h>
 #include <linux/spi/spi.h>
+#include <linux/cdev.h>
 
+
+static struct class *my_class;
+static struct cdev my_cdev;
+static dev_t my_devt;
 static struct spi_device * dac_mcp4921_dev;
+
+#define MY_DEV_NAME "dac_mcp4921"
+#define MY_CLASS_NAME "spi_dac_devices"
+#define SPI_BUS 0
+#define DAC_MCP4921_REF_VOLTAGE_mV 3300
+
+
 
 void DAC_MCP4921_Set(unsigned int voltage_12bit)
 {
@@ -31,7 +41,56 @@ void DAC_MCP4921_Set_mV(unsigned int voltage_mV)
 }
 
 
-/*----- Funkcje do obsługi urządzenia znakowego -----*/
+/*---------- Obsługa urządzenia znakowego ----------*/
+
+/* Funkcja wywoływana podczas zapisywania do pliku urządzenia */
+static ssize_t DeviceWrite(struct file *filp, const char *buf, size_t count, loff_t *f_pos)
+{
+    #define MAX_WRITE_SIZE 10    /* 4 znaki na liczbę i jeden znak Null */
+
+    char kspace_buffer[MAX_WRITE_SIZE] = "";
+    int voltage_mV, ret_val;
+
+    pr_info("Write to device file.\n");
+
+    if(count > MAX_WRITE_SIZE)    
+    {
+        pr_info("Bad input number.\n");
+        return -ERANGE;
+    }
+
+    if( copy_from_user(kspace_buffer, buf, count) )
+    {
+        pr_info("Can't copy data from user space\n");
+        return -EFAULT;		
+    }
+
+    pr_info("%s\n", kspace_buffer);
+
+    ret_val = kstrtol(kspace_buffer, 0, (long*)&voltage_mV);
+    if(ret_val)
+    {
+        pr_info("Can't convert data to integer\n");
+        return ret_val;
+    }
+
+    if(voltage_mV < 0    ||   voltage_mV > DAC_MCP4921_REF_VOLTAGE_mV)
+    {
+        pr_info("Bad voltage value\n");
+        return -EINVAL;
+    }
+
+    DAC_MCP4921_Set_mV(voltage_mV);
+
+    return count;
+}
+
+
+/* Struktura przechowująca informacje o operacjach możliwych do wykonania na pliku urządzenia */
+static struct file_operations fops = {
+    .owner=THIS_MODULE,
+    .write=DeviceWrite
+};
 
 /*---------------------------------------------------*/
 
@@ -42,15 +101,45 @@ static int mtm_probe(struct spi_device *dev)
 {
         dev_info(&dev->dev, "SPI DAC Driver Probed\n");
 
+        /* Zapisanie wskaźnika do urządzenia SPI */
         dac_mcp4921_dev = dev;
-        
 
+        /* Zaalokowanie numerów MAJOR i MINOR dla urządzenia */
+        alloc_chrdev_region(&my_devt, 0, 1, MY_DEV_NAME);
+
+        /* Stworzenie klasy urządzeń, widocznej w /sys/class */
+        my_class = class_create(MY_CLASS_NAME);
+
+        /* Inicjalizacja urządzenia znakowego - podpięcie funkcji do operacji na plikach (file operations) */
+        cdev_init(&my_cdev, &fops);
+
+        /* Dodanie urządzenia do systemu */
+        cdev_add(&my_cdev, my_devt, 1);
+
+        /* Stworzenie pliku w przestrzeni użytkownika (w /dev), reprezentującego urządzenie */
+        device_create(my_class, NULL, my_devt, NULL, MY_DEV_NAME);
+
+        pr_info("Alocated device MAJOR number: %d\n", MAJOR(my_devt));
+        
         return 0;
 }
 
 static int mtm_remove(struct spi_device *dev)
 {
         dev_info(&dev->dev, "SPI DAC Driver Removed\n");
+
+         /* Usunięcie pliku urządzenia z przestrzeni użytkownika */
+        device_destroy(my_class, my_devt);
+
+        /* Usunięcie urządzenia z systemu */
+        cdev_del(&my_cdev);
+
+        /* Usunięcie klasy urządzenia */
+        class_unregister(my_class);
+        class_destroy(my_class);
+
+        /* Zwolnienie przypisanych numerów MAJOR i MINOR */
+        unregister_chrdev_region(my_devt, 1);
         
         return 0;
 }
@@ -63,15 +152,7 @@ static const struct of_device_id mtm_of_id[] = {
         {},
 };
 
-MODULE_DEVICE_TABLE(of, mtm_of_id);                     //platform - dopasowuje sterownik po compatible
-
-
-// static const struct spi_device_id my_dac[] = {
-//         {"my_dac", 0},
-//         {},
-// };
-
-// MODULE_DEVICE_TABLE(spi, my_dac);                    //spi - dopasowuje sterownik po nazwie urządzenia z tablicy typu spi_device_id
+MODULE_DEVICE_TABLE(of, mtm_of_id);   
 
 
 static struct spi_driver mtm_driver = {
