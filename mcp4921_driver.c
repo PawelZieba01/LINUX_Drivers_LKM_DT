@@ -1,68 +1,51 @@
 #include <linux/of.h>
 #include <linux/platform_device.h>
+#include <linux/spi/spi.h>
 
-/*----- Parametr modułu przeznaczony do odczytu -----*/
-static unsigned long int mtm_param = 64;
 
-static ssize_t mtm_param_show(struct device *dev, struct device_attribute *attr, char *buf)
+
+static int mtm_probe(struct spi_device *dev)
 {
-    return sprintf(buf, "%lu\n", mtm_param);
-}
-
-DEVICE_ATTR_RO(mtm_param);
-/*---------------------------------------------------*/
-
-
-
-static int mtm_probe(struct platform_device *dev)
-{
-        struct device_node * sMyNode = dev->dev.of_node;
-        uint32_t param;
-
         dev_info(&dev->dev, "probed\n");
-
-        /* Odczyt własności urządzenia z DT */
-        of_property_read_u32(sMyNode, "int_param", &param);
-        pr_info("int_param: %d\n", param);
-
-        /* Utworzenie pliku reprezentującego atrybut w przestrzeni użytkownika */
-        device_create_file(&dev->dev, &dev_attr_mtm_param);
         return 0;
 }
 
-static int mtm_remove(struct platform_device *dev)
+static int mtm_remove(struct spi_device *dev)
 {
         dev_info(&dev->dev, "removed\n");
-
-        /* Usunięcie pliku reprezentującego atrybut urządzenia*/
-        device_remove_file(&dev->dev, &dev_attr_mtm_param);
         return 0;
 }
 
-// static const struct platform_device_id mtm_id[] = {
-//         { .name = "mtm_device" },
-//     { }
-// };
+
+
 
 static const struct of_device_id mtm_of_id[] = {
-        { .compatible = "mtm" },
-    { }
+        { .compatible = "microchip,my_dac" },
+        {},
 };
 
-//MODULE_DEVICE_TABLE(platform, mtm_id);        //platform - dopasowuje sterownik po nazwie
-MODULE_DEVICE_TABLE(of, mtm_of_id);             //platform - dopasowuje sterownik po compatible
+MODULE_DEVICE_TABLE(of, mtm_of_id);                     //platform - dopasowuje sterownik po compatible
 
-static struct platform_driver mtm_driver = {
-        //.id_table = mtm_id,
-        .probe = mtm_probe,
-        .remove = mtm_remove,
+
+// static const struct spi_device_id my_dac[] = {
+//         {"my_dacc", 0},
+//         {},
+// };
+
+// MODULE_DEVICE_TABLE(spi, my_dac);                    //spi - dopasowuje sterownik po nazwie urządzenia z tablicy typu spi_device_id
+
+
+static struct spi_driver mtm_driver = {
+        //.id_table = my_dac;
+        .probe = (void*) mtm_probe,
+        .remove = (void*) mtm_remove,
         .driver = {
-                .name = "mtm_device",
+                .name = "my_dac",
                 .of_match_table = mtm_of_id,
                 .owner = THIS_MODULE,
         },
 };
-module_platform_driver(mtm_driver);
+module_spi_driver(mtm_driver);
 
 MODULE_LICENSE("GPL v2");
 
