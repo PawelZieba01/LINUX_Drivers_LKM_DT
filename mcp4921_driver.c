@@ -108,7 +108,7 @@ static int mtm_probe(struct spi_device *dev)
         alloc_chrdev_region(&my_devt, 0, 1, MY_DEV_NAME);
 
         /* Stworzenie klasy urządzeń, widocznej w /sys/class */
-        my_class = class_create(MY_CLASS_NAME);
+        my_class = class_create(THIS_MODULE, MY_CLASS_NAME);
 
         /* Inicjalizacja urządzenia znakowego - podpięcie funkcji do operacji na plikach (file operations) */
         cdev_init(&my_cdev, &fops);
