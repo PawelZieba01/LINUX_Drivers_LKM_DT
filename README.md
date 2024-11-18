@@ -1,4 +1,4 @@
-# Device Tree sterownik MCP23S09
+# Device Tree sterownik MCP4921
 Sterownik udostępniający do przestrzeni użytkownika plik atrybutu, dzięki któremu można sterować wyjściem ekspadnera IO - MCP23S09
 
 Plik atrybutu urządzenia jest dostępny tutaj:   
