@@ -19,8 +19,8 @@
                     #address-cells = <1>;
 		    #size-cells = <0>;
                              
-                    my_dac: my_dac@0{
-                        compatible = "micrpchip,my_dac";
+                    my_io: my_io@0{
+                        compatible = "microchip,my_io";
                         status = "okay";
                         reg = <0>;
                         spi-max-frequency = <100000>;
