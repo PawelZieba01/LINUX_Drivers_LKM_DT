@@ -76,6 +76,7 @@ static int mtm_probe(struct spi_device *dev)
 static int mtm_remove(struct spi_device *dev)
 {
         dev_info(&dev->dev, "SPI DAC Driver Removed\n");
+        device_remove_file(&dev->dev, &dev_attr_dac_voltage_mV);
         return 0;
 }
 
