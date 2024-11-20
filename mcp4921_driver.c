@@ -44,8 +44,7 @@ void DAC_MCP4921_Set_mV(unsigned int voltage_mV)
 }
 
 
-/*---------- Obsługa urządzenia znakowego ----------*/
-
+/*-------------------- Obsługa urządzenia znakowego --------------------*/
 /* Funkcja wywoływana podczas zapisywania do pliku urządzenia */
 static ssize_t device_write(struct file *filp, const char *buf,
                            size_t count, loff_t *f_pos) 
@@ -90,10 +89,7 @@ static struct file_operations fops = {
         .owner=THIS_MODULE,
         .write=device_write
 };
-
-/*---------------------------------------------------*/
-
-
+/*----------------------------------------------------------------------*/
 
 
 static int mtm_probe(struct spi_device *dev)
@@ -116,7 +112,7 @@ static int mtm_probe(struct spi_device *dev)
         /* Dodanie urządzenia do systemu */
         cdev_add(&my_cdev, my_devt, 1);
 
-        /* Stworzenie pliku w przestrzeni użytkownika (w /dev),
+        /* Utworzenie pliku w przestrzeni użytkownika (w /dev),
            reprezentującego urządzenie */
         device_create(my_class, NULL, my_devt, NULL, MY_DEV_NAME);
 
@@ -124,6 +120,7 @@ static int mtm_probe(struct spi_device *dev)
         
         return 0;
 }
+
 
 static int mtm_remove(struct spi_device *dev)
 {
@@ -146,13 +143,10 @@ static int mtm_remove(struct spi_device *dev)
 }
 
 
-
-
 static const struct of_device_id mtm_of_id[] = {
         { .compatible = "microchip,my_dac" },
         {},
 };
-
 MODULE_DEVICE_TABLE(of, mtm_of_id);   
 
 
