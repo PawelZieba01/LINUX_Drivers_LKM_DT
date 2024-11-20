@@ -28,17 +28,18 @@ Na podstawie poprzedniego modułu przygotowano jego rozszerzenie. W tym przykła
 
 ```C
 /* Funkcja wywoływana podczas otwierania pliku urządzenia */
-static int ModuleOpen(struct inode *device_file, struct file *instance)
+static int device_open(struct inode *device_file, struct file *instance)
 {
-    pr_info("Module device file open.\n");
-    return 0;
+        pr_info("Module device file open.\n");
+        return 0;
 }
 
+
 /* Funkcja wywoływana podczas zamykania pliku urządzenia */
-static int ModuleClose(struct inode *device_file, struct file *instance)
+static int device_close(struct inode *device_file, struct file *instance)
 {
-    pr_info("Module device file close.\n");
-    return 0;
+        pr_info("Module device file close.\n");
+        return 0;
 }
 ```
 
@@ -57,9 +58,9 @@ Dzięki temu np.: system bokuje możliwość usunięcia modułu z jądra, jeśli
 ```C
 /* Struktura przechowująca informacje o operacjach możliwych do wykonania na pliku urządzenia */
 static struct file_operations fops = {
-    .owner=THIS_MODULE,
-    .open=ModuleOpen,
-    .release=ModuleClose
+        .owner=THIS_MODULE,
+        .open=device_open,
+        .release=device_close
 };
 ```
 
@@ -100,33 +101,29 @@ Poniższy fragment kodu przedstawia funkcję inicalizującą modułu, w której 
 #define MY_MAJOR 30
 #define MY_DEV_NAME "my_open_close_dev"
 
-/* Funkcja wywoływana podczas ładowania modułu do jądra linux */
-static int __init ModuleInit(void)
+/* Funkcja wykonywana podczas ładowania modułu do jądra linux */
+static int __init on_init(void)
 {
-    int status;
+        int status;
 
-    pr_info("Module init.\n");
+        pr_info("Module init.\n");
 
-    /* Rejestracja urządzenia w jądrze linux
-    *  Podanie 0 jako numer major, spowoduje dynamiczne pozyskanie tego numeru, wtedy funkcja go zwróci
-    */
-    status = register_chrdev(MY_MAJOR, MY_DEV_NAME, &fops);
-    if(status < 0)
-    {
-        pr_info("Nie udało zarejestrować urządzenia\n");
-        return -1;
-    }
-    else if(status > 0)     /* Udało się dynamicznie zarejestrować urządzenie*/
-    {
-        my_dev_major = status;
-    }
-    else    /* Jeśli funkcja zwróci 0, to udało się zarejestrować urządzenie pod podanym numerem*/
-    {
-        my_dev_major = MY_MAJOR;
-    }
+        /* 
+        *  Rejestracja urządzenia w jądrze linux
+        *  Podanie 0 jako numer major, spowoduje dynamiczne pozyskanie tego numeru, wtedy funkcja go zwróci
+        */
+        status = register_chrdev(MY_MAJOR, MY_DEV_NAME, &fops);
+        if (status < 0) {
+                pr_info("Nie udało zarejestrować urządzenia\n");
+                return -1;
+        } else if (status > 0) {            /* Udało się dynamicznie zarejestrować urządzenie*/
+                my_dev_major = status;
+        } else {                            /* Jeśli funkcja zwróci 0, to udało się zarejestrować urządzenie pod podanym numerem*/
+                my_dev_major = MY_MAJOR;
+        }
 
-    pr_info("Zarejestrowano urządzenie o numerze MAJOR: %d\n", my_dev_major);
-    return 0;
+        pr_info("Zarejestrowano urządzenie o numerze MAJOR: %d\n", my_dev_major);
+        return 0;
 }
 ```
 
