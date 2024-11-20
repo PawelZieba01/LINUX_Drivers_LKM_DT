@@ -6,12 +6,10 @@ static unsigned long int mtm_param = 64;
 
 static ssize_t mtm_param_show(struct device *dev, struct device_attribute *attr, char *buf)
 {
-    return sprintf(buf, "%lu\n", mtm_param);
+        return sprintf(buf, "%lu\n", mtm_param);
 }
-
 DEVICE_ATTR_RO(mtm_param);
 /*---------------------------------------------------*/
-
 
 
 static int mtm_probe(struct platform_device *dev)
@@ -30,6 +28,7 @@ static int mtm_probe(struct platform_device *dev)
         return 0;
 }
 
+
 static int mtm_remove(struct platform_device *dev)
 {
         dev_info(&dev->dev, "removed\n");
@@ -46,11 +45,12 @@ static int mtm_remove(struct platform_device *dev)
 
 static const struct of_device_id mtm_of_id[] = {
         { .compatible = "mtm" },
-    { }
+        { },
 };
 
 //MODULE_DEVICE_TABLE(platform, mtm_id);        //platform - dopasowuje sterownik po nazwie
 MODULE_DEVICE_TABLE(of, mtm_of_id);             //of - dopasowuje sterownik po compatible
+
 
 static struct platform_driver mtm_driver = {
         //.id_table = mtm_id,
@@ -63,6 +63,7 @@ static struct platform_driver mtm_driver = {
         },
 };
 module_platform_driver(mtm_driver);
+
 
 MODULE_LICENSE("GPL v2");
 
