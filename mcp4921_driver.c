@@ -3,7 +3,6 @@
 #include <linux/spi/spi.h>
 
 
-
 static int mtm_probe(struct spi_device *dev)
 {
         dev_info(&dev->dev, "SPI DAC Driver Probed\n");
@@ -15,8 +14,6 @@ static int mtm_remove(struct spi_device *dev)
         dev_info(&dev->dev, "SPI DAC Driver Removed\n");
         return 0;
 }
-
-
 
 
 static const struct of_device_id mtm_of_id[] = {
