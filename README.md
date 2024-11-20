@@ -28,14 +28,14 @@ ERROR: modpost: missing MODULE_LICENSE() in /home/pi/LINUX_Drivers_LKM_DT/hello_
 /* Funkcja wywoływana podczas ładowania modułu do jądra linux */
 static int __init ModuleInit(void)
 {
-    printk("Hello kernel !!!\n");
-    return 0;
+        printk("Hello kernel !!!\n");
+        return 0;
 }
 
 /* Funkcja wykonywana podczas usuwania modułu z jądra linux */
 static void __exit ModuleExit(void)
 {
-    printk("Goodbye kernel !!!\n");
+        printk("Goodbye kernel !!!\n");
 }
 ```
 
