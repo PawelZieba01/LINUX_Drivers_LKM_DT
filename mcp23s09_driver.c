@@ -1,5 +1,5 @@
 #include <linux/of.h>
-#include <linux/platform_device.h>
+#include <linux/cdev.h>
 #include <linux/spi/spi.h>
 
 #define IO_WRITE_OPCODE 0x40
@@ -7,6 +7,15 @@
 #define IO_DIR_REG 0x00
 #define IO_GPIO_REG 0x09
 
+#define MY_DEV_NAME "io_mcp23s09"
+#define MY_CLASS_NAME "spi_io_devices"
+
+#define MAX_WRITE_SIZE 10
+#define MAX_READ_SIZE 6
+
+static struct class *my_class;
+static struct cdev my_cdev;
+static dev_t my_devt;
 
 static struct spi_device * io_mcp23s09_dev;
 
@@ -53,47 +62,106 @@ unsigned char IO_MCP23S09_Get(void)
 }
 
 
-/*----- Parametr modułu przeznaczony do zapisu -----*/
-static long int io_port_state = 0;
-
-static ssize_t io_port_state_store(struct device *dev,
-                                   struct device_attribute *attr,
-                                   const char *buf, size_t count)
+/*------------------ Obsługa urządzenia znakowego ------------------*/
+/* Funkcja wywoływana podczas zapisywania do pliku urządzenia */
+static ssize_t device_write(struct file *filp, const char *buf,
+                           size_t count, loff_t *f_pos) 
 {
-        int res;
+        char kspace_buffer[MAX_WRITE_SIZE] = "";
+        int port_value, ret;
 
-        res = kstrtol(buf, 0, &io_port_state);
-        if (res)
-                return res;
-               
-        if (io_port_state < 0x00  ||  io_port_state > 0xff)
+        pr_info("Write to device file.\n");
+
+        if (count > MAX_WRITE_SIZE) {
+                pr_err("Bad input number.\n");
+                return -ERANGE;
+        }
+
+        if (copy_from_user(kspace_buffer, buf, count)) {
+                pr_err("Can't copy data from user space\n");
+                return -EFAULT;		
+        }
+
+        ret = kstrtol(kspace_buffer, 0, (long*)&port_value);
+        if (ret) {
+                pr_err("Can't convert data to integer\n");
+                return ret;
+        }
+
+        if (port_value < 0x00  ||  port_value > 0xff) {
+                pr_err("Bad voltage value\n");
                 return -EINVAL;
-        
-        IO_MCP23S09_Set(io_port_state);
+        }
+
+        IO_MCP23S09_Set(port_value);
+
         return count;
 }
 
 
-static ssize_t io_port_state_show(struct device *dev,
-                                  struct device_attribute *attr,
-                                  char *buf)
+/* Funkcja wywoływana podczas czytania z pliku urządzenia */
+static ssize_t device_read(struct file *filp, char *buf, size_t count,
+                           loff_t *f_pos)
 {
-        io_port_state = (unsigned char)IO_MCP23S09_Get();
-        return sprintf(buf, "0x%02X\n", (unsigned int)io_port_state);
+        unsigned char port_value; 
+        unsigned char port_buf[MAX_READ_SIZE];
+
+        pr_info("Read from device file.\n");
+
+        port_value = IO_MCP23S09_Get();
+        sprintf(port_buf, "0x%X\n", port_value);
+     
+        if (*f_pos >= MAX_READ_SIZE)
+                return 0; /*EOF*/
+
+        if (*f_pos + count > MAX_READ_SIZE)
+                count = MAX_READ_SIZE - *f_pos;
+
+        if (copy_to_user(buf, port_buf, MAX_READ_SIZE) != 0)
+                return -EIO;
+                
+        *f_pos += count;
+        return count;
 }
-DEVICE_ATTR_RW(io_port_state);
-/*---------------------------------------------------*/
+
+
+/* Struktura przechowująca informacje o operacjach możliwych do
+   wykonania na pliku urządzenia */
+static struct file_operations fops = {
+        .owner = THIS_MODULE,
+        .write = device_write,
+        .read = device_read
+};
+/*------------------------------------------------------------------*/
 
 
 static int mtm_probe(struct spi_device *dev)
 {
         dev_info(&dev->dev, "SPI IO Driver Probed\n");
 
+        /* Zapisanie wskaźnika do urządzenia SPI */
         io_mcp23s09_dev = dev;
-        
-        /* Utworzenie pliku reprezentującego atrybut urządzenia */
-        device_create_file(&dev->dev, &dev_attr_io_port_state);
 
+        /* Zaalokowanie numerów MAJOR i MINOR dla urządzenia */
+        alloc_chrdev_region(&my_devt, 0, 1, MY_DEV_NAME);
+
+        /* Stworzenie klasy urządzeń, widocznej w /sys/class */
+        my_class = class_create(THIS_MODULE, MY_CLASS_NAME);
+
+        /* Inicjalizacja urządzenia znakowego - podpięcie funkcji
+           do operacji na plikach (file operations) */
+        cdev_init(&my_cdev, &fops);
+
+        /* Dodanie urządzenia do systemu */
+        cdev_add(&my_cdev, my_devt, 1);
+
+        /* Stworzenie pliku w przestrzeni użytkownika (w /dev),
+           reprezentującego urządzenie */
+        device_create(my_class, NULL, my_devt, NULL, MY_DEV_NAME);
+
+        dev_info(&dev->dev, "Alocated device MAJOR number: %d\n",
+                 MAJOR(my_devt));
+        
         return 0;
 }
 
@@ -101,7 +169,20 @@ static int mtm_probe(struct spi_device *dev)
 static int mtm_remove(struct spi_device *dev)
 {
         dev_info(&dev->dev, "SPI IO Driver Removed\n");
-        device_remove_file(&dev->dev, &dev_attr_io_port_state);
+
+         /* Usunięcie pliku urządzenia z przestrzeni użytkownika */
+        device_destroy(my_class, my_devt);
+
+        /* Usunięcie urządzenia z systemu */
+        cdev_del(&my_cdev);
+
+        /* Usunięcie klasy urządzenia */
+        class_unregister(my_class);
+        class_destroy(my_class);
+
+        /* Zwolnienie przypisanych numerów MAJOR i MINOR */
+        unregister_chrdev_region(my_devt, 1);
+        
         return 0;
 }
 
