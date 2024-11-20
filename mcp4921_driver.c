@@ -47,7 +47,7 @@ void DAC_MCP4921_Set_mV(unsigned int voltage_mV)
 /*---------- Obsługa urządzenia znakowego ----------*/
 
 /* Funkcja wywoływana podczas zapisywania do pliku urządzenia */
-static ssize_t DeviceWrite(struct file *filp, const char *buf,
+static ssize_t device_write(struct file *filp, const char *buf,
                            size_t count, loff_t *f_pos) 
 {
         char kspace_buffer[MAX_WRITE_SIZE] = "";
@@ -88,7 +88,7 @@ static ssize_t DeviceWrite(struct file *filp, const char *buf,
    wykonania na pliku urządzenia */
 static struct file_operations fops = {
         .owner=THIS_MODULE,
-        .write=DeviceWrite
+        .write=device_write
 };
 
 /*---------------------------------------------------*/
