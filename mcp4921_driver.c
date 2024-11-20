@@ -30,7 +30,7 @@ void DAC_MCP4921_Set_mV(unsigned int voltage_mV)
 {
          /* Konwersja Q16.15 do Q16.0 */
         unsigned int voltage_12bit = (((unsigned long)voltage_mV *
-                                      (unsigned long)BINARY_VAL_FOR_1mV) >> 15);
+                                     (unsigned long)BINARY_VAL_FOR_1mV) >> 15);
         
         pr_info("Set voltage to %d [mV]\n", voltage_mV);
         pr_info("Set voltage to %d [12bit]\n", voltage_12bit);
@@ -49,10 +49,10 @@ static ssize_t dac_voltage_mV_store(struct device *dev,
         int res;
 
         res = kstrtol(buf, 0, &dac_voltage_mV);
-        if(res)
+        if (res)
                 return res;
         
-        if(dac_voltage_mV < 0  ||  dac_voltage_mV > 3300)
+        if (dac_voltage_mV < 0  ||  dac_voltage_mV > 3300)
                 return -EINVAL;
         
         DAC_MCP4921_Set_mV(dac_voltage_mV);
