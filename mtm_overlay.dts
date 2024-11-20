@@ -2,17 +2,17 @@
 /plugin/;
 
 / {
-    compatible = "brcm,bcm2835";
+        compatible = "brcm,bcm2835";
 
-    fragment@0 {
-        target-path = "/";
+        fragment@0 {
+                target-path = "/";
 
-        __overlay__ {
-            mtm_device {
-                compatible = "mtm";
-                string_param = "mtm device param";
-                int_param = <17>;
-            };
+                __overlay__ {
+                        mtm_device {
+                                compatible = "mtm";
+                                string_param = "mtm device param";
+                                int_param = <17>;
+                        };
+                };
         };
-    };
 };
