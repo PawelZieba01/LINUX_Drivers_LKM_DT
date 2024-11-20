@@ -25,17 +25,18 @@ ERROR: modpost: missing MODULE_LICENSE() in /home/pi/LINUX_Drivers_LKM_DT/hello_
 >Licencja GPL (General Public License) pozwala na korzystanie, modyfikowanie i rozpowrzechnianie (na tej samej licencji) zasobów oprogramowania.
 
 ```C
-/* Funkcja wywoływana podczas ładowania modułu do jądra linux */
-static int __init ModuleInit(void)
+/* Funkcja wykonywana podczas ładowania modułu do jądra linux */
+static int __init on_init(void)
 {
-        printk("Hello kernel !!!\n");
+        pr_info("Hello kernel !!!\n");
         return 0;
 }
 
+
 /* Funkcja wykonywana podczas usuwania modułu z jądra linux */
-static void __exit ModuleExit(void)
+static void __exit on_exit(void)
 {
-        printk("Goodbye kernel !!!\n");
+        pr_info("Goodbye kernel !!!\n"); 
 }
 ```
 
@@ -46,8 +47,8 @@ Funkcja `printk` odpowiada za wpisanie wiadomości do bufora diagnostycznego war
 Atrybuty `__init` oraz `__exit` służą do poinstruowania linkera, aby umieścił kod funkcji w specjalnej sekcji pliku objektowego. Mają one zastosowanie w przypadku modułów wbudowanych, które są budowane razem z jądrem systemu. Oznacza to, że w trakcie działania systemu taki moduł jest ładowany tylko jeden raz, więc można zwolnić pamięć zajmowaną przez funkcję z atrybutem `__init`. W przypadku atrybutu `__exit`, funkcje nie są umieszczane w obrazie systemu.
 
 ```C
-module_init(ModuleInit);
-module_exit(ModuleExit);
+module_init(on_init);
+module_exit(on_exit);
 ```
 
 Powyższe funkcje służą do wskazania tak zwanego 'driver initialization entry point' oraz 'driver exit entry point'.   
