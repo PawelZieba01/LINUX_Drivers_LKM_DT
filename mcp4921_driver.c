@@ -9,10 +9,9 @@ static int mtm_probe(struct spi_device *dev)
         return 0;
 }
 
-static int mtm_remove(struct spi_device *dev)
+static void mtm_remove(struct spi_device *dev)
 {
         dev_info(&dev->dev, "SPI DAC Driver Removed\n");
-        return 0;
 }
 
 
@@ -34,8 +33,8 @@ MODULE_DEVICE_TABLE(of, mtm_of_id);                     //platform - dopasowuje 
 
 static struct spi_driver mtm_driver = {
         //.id_table = my_dac;
-        .probe = (void*) mtm_probe,
-        .remove = (void*) mtm_remove,
+        .probe = mtm_probe,
+        .remove = mtm_remove,
         .driver = {
                 .name = "my_dac",
                 .of_match_table = mtm_of_id,
