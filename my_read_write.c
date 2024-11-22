@@ -19,6 +19,7 @@ MODULE_DESCRIPTION("Prosty moduł z obsługą wywołań systemowych open(), clos
 static char dev_buffer[BUFF_LENGTH];
 
 static struct class *my_class;
+static struct device *my_device;
 static struct cdev my_cdev;
 static dev_t my_devt;
 
@@ -43,13 +44,7 @@ static int device_close(struct inode *device_file, struct file *instance)
 static ssize_t device_write(struct file *filp, const char *buf, size_t count, loff_t *f_pos)
 {
         pr_info("Write to device file.\n");
-
-        if (*f_pos >= BUFF_LENGTH)
-                return -EINVAL;
-        
-        if (*f_pos + count > BUFF_LENGTH)
-                count = BUFF_LENGTH - *f_pos;
-        
+       
         if (copy_from_user(dev_buffer, buf, count) != 0)
                 return -EFAULT;
         
@@ -62,16 +57,9 @@ static ssize_t device_read(struct file *filp, char *buf, size_t count, loff_t *f
 {
         pr_info("Read from device file.\n");
 
-        if (*f_pos >= BUFF_LENGTH)
-                return 0; /*EOF*/
-        
-        if (*f_pos + count > BUFF_LENGTH)
-                count = BUFF_LENGTH - *f_pos;
-       
-        if (copy_to_user(buf, &dev_buffer[*f_pos], count) != 0)
+        if (copy_to_user(buf, &dev_buffer, count) != 0)
                 return -EIO;
-                
-        *f_pos += count;
+
         return count;
 }
 
@@ -104,7 +92,7 @@ static int __init on_init(void)
         cdev_add(&my_cdev, my_devt, 1);
 
         /* Stworzenie pliku w przestrzeni użytkownika (w /dev), reprezentującego urządzenie */
-        device_create(my_class, NULL, my_devt, NULL, MY_DEV_NAME);
+        my_device = device_create(my_class, NULL, my_devt, NULL, MY_DEV_NAME);
 
 
         pr_info("Alocated device MAJOR number: %d\n", MAJOR(my_devt));
