@@ -12,7 +12,7 @@ MODULE_DESCRIPTION("Prosty moduł z obsługą wywołań systemowych open(), clos
 /* Dzięki tej definicji, funkcja pr_info doklei na początku każdej wiadomości nazwę naszego modułu */
 #define pr_fmt(fmt) KBUILD_MODNAME ": " fmt
 
-#define BUFF_LENGTH 16
+#define BUFF_LENGTH 128
 #define MY_DEV_NAME "my_read_write_dev"
 #define MY_CLASS_NAME "my_device_class"
 
@@ -47,6 +47,7 @@ static ssize_t device_write(struct file *filp, const char *buf, size_t count, lo
        
         if (copy_from_user(dev_buffer, buf, count) != 0)
                 return -EFAULT;
+        dev_buffer[count] = '\0';
         
         return count;
 }
@@ -57,7 +58,7 @@ static ssize_t device_read(struct file *filp, char *buf, size_t count, loff_t *f
 {
         pr_info("Read from device file.\n");
 
-        if (copy_to_user(buf, &dev_buffer, count) != 0)
+        if (copy_to_user(buf, dev_buffer, strlen(dev_buffer)) != 0)
                 return -EIO;
 
         return count;
