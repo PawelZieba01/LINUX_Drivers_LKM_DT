@@ -16,7 +16,7 @@ static void mcp4921_remove(struct spi_device *dev)
 
 
 static const struct of_device_id mcp4921_of_id[] = {
-        { .compatible = "microchip,my_dac" },
+        { .compatible = "microchip,mcp4921_dac" },
         {},
 };
 
