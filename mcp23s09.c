@@ -17,10 +17,10 @@ static struct class *my_class;
 static struct cdev my_cdev;
 static dev_t my_devt;
 
-static struct spi_device * io_mcp23s09_dev;
+static struct spi_device *mcp23s09_spi_dev;
 
 
-void IO_MCP23S09_Set(unsigned char port_value)
+void mcp23s09_set_port(unsigned char port_value)
 {
         unsigned char spi_buff[6] = {
                 IO_WRITE_OPCODE,
@@ -33,14 +33,14 @@ void IO_MCP23S09_Set(unsigned char port_value)
         
         pr_info("Set port value to %x \n", port_value);
 
-        spi_write(io_mcp23s09_dev, &spi_buff[0], 3);    /* Ustawienie pinów 
+        spi_write(mcp23s09_spi_dev, &spi_buff[0], 3);    /* Ustawienie pinów 
                                                            jako wyjścia */
-        spi_write(io_mcp23s09_dev, &spi_buff[3], 3);    /* Ustawienie wartości
+        spi_write(mcp23s09_spi_dev, &spi_buff[3], 3);    /* Ustawienie wartości
                                                            pinów */
 }
 
 
-unsigned char IO_MCP23S09_Get(void)
+unsigned char mcp23s09_get_port(void)
 {
         unsigned char spi_tx_buff[5] = {
                 IO_WRITE_OPCODE,
@@ -54,8 +54,8 @@ unsigned char IO_MCP23S09_Get(void)
 
         pr_info("Get port value.\n");
 
-        spi_write_then_read(io_mcp23s09_dev, &spi_tx_buff[0], 3, 0, 0);
-        spi_write_then_read(io_mcp23s09_dev, &spi_tx_buff[3], 2,
+        spi_write_then_read(mcp23s09_spi_dev, &spi_tx_buff[0], 3, 0, 0);
+        spi_write_then_read(mcp23s09_spi_dev, &spi_tx_buff[3], 2,
                             &spi_rx_buff[0], 1);
 
         return spi_rx_buff[0];
@@ -64,7 +64,7 @@ unsigned char IO_MCP23S09_Get(void)
 
 /*------------------ Obsługa urządzenia znakowego ------------------*/
 /* Funkcja wywoływana podczas zapisywania do pliku urządzenia */
-static ssize_t device_write(struct file *filp, const char *buf,
+static ssize_t mcp23s09_write(struct file *filp, const char *buf,
                            size_t count, loff_t *f_pos) 
 {
         char kspace_buffer[MAX_WRITE_SIZE] = "";
@@ -93,14 +93,14 @@ static ssize_t device_write(struct file *filp, const char *buf,
                 return -EINVAL;
         }
 
-        IO_MCP23S09_Set(port_value);
+        mcp23s09_set_port(port_value);
 
         return count;
 }
 
 
 /* Funkcja wywoływana podczas czytania z pliku urządzenia */
-static ssize_t device_read(struct file *filp, char *buf, size_t count,
+static ssize_t mcp23s09_read(struct file *filp, char *buf, size_t count,
                            loff_t *f_pos)
 {
         unsigned char port_value; 
@@ -108,7 +108,7 @@ static ssize_t device_read(struct file *filp, char *buf, size_t count,
 
         pr_info("Read from device file.\n");
 
-        port_value = IO_MCP23S09_Get();
+        port_value = mcp23s09_get_port();
         sprintf(port_buf, "0x%X\n", port_value);
      
         if (*f_pos >= MAX_READ_SIZE)
@@ -129,18 +129,18 @@ static ssize_t device_read(struct file *filp, char *buf, size_t count,
    wykonania na pliku urządzenia */
 static struct file_operations fops = {
         .owner = THIS_MODULE,
-        .write = device_write,
-        .read = device_read
+        .write = mcp23s09_write,
+        .read = mcp23s09_read
 };
 /*------------------------------------------------------------------*/
 
 
-static int mtm_probe(struct spi_device *dev)
+static int mcp23s09_probe(struct spi_device *dev)
 {
         dev_info(&dev->dev, "SPI IO Driver Probed\n");
 
         /* Zapisanie wskaźnika do urządzenia SPI */
-        io_mcp23s09_dev = dev;
+        mcp23s09_spi_dev = dev;
 
         /* Zaalokowanie numerów MAJOR i MINOR dla urządzenia */
         alloc_chrdev_region(&my_devt, 0, 1, MY_DEV_NAME);
@@ -166,7 +166,7 @@ static int mtm_probe(struct spi_device *dev)
 }
 
 
-static int mtm_remove(struct spi_device *dev)
+static void mcp23s09_remove(struct spi_device *dev)
 {
         dev_info(&dev->dev, "SPI IO Driver Removed\n");
 
@@ -182,27 +182,25 @@ static int mtm_remove(struct spi_device *dev)
 
         /* Zwolnienie przypisanych numerów MAJOR i MINOR */
         unregister_chrdev_region(my_devt, 1);
-        
-        return 0;
 }
 
 
-static const struct of_device_id mtm_of_id[] = {
-        { .compatible = "microchip,my_io" },
+static const struct of_device_id mcp23s09_of_id[] = {
+        { .compatible = "microchip,mcp23s09_io" },
         {},
 };
-MODULE_DEVICE_TABLE(of, mtm_of_id); 
+MODULE_DEVICE_TABLE(of, mcp23s09_of_id); 
 
 
-static struct spi_driver mtm_driver = {
-        .probe = (void*) mtm_probe,
-        .remove = (void*) mtm_remove,
+static struct spi_driver mcp23s09_driver = {
+        .probe = mcp23s09_probe,
+        .remove = mcp23s09_remove,
         .driver = {
-                .name = "my_io",
-                .of_match_table = mtm_of_id,
+                .name = "mcp23s09_io",
+                .of_match_table = mcp23s09_of_id,
                 .owner = THIS_MODULE,
         },
 };
-module_spi_driver(mtm_driver);
+module_spi_driver(mcp23s09_driver);
 
 MODULE_LICENSE("GPL v2");
