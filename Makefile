@@ -1,4 +1,4 @@
-obj-m += mcp23s09_driver.o
+obj-m += mcp23s09.o
 
 # Polecenie uruchamiające proces budowania modułu jądra linux
 # -C oznacza wykoannie polecenia make w podanej ścieżce (ścieżka do plików środowiska buildowania modułów)
