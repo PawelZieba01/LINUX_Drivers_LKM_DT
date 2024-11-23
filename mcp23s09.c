@@ -11,7 +11,7 @@
 #define MY_CLASS_NAME "spi_io_devices"
 
 #define MAX_WRITE_SIZE 10
-#define MAX_READ_SIZE 6
+#define MAX_READ_SIZE 7
 
 static struct class *my_class;
 static struct cdev my_cdev;
@@ -111,16 +111,10 @@ static ssize_t mcp23s09_read(struct file *filp, char *buf, size_t count,
         port_value = mcp23s09_get_port();
         sprintf(port_buf, "0x%X\n", port_value);
      
-        if (*f_pos >= MAX_READ_SIZE)
-                return 0; /*EOF*/
 
-        if (*f_pos + count > MAX_READ_SIZE)
-                count = MAX_READ_SIZE - *f_pos;
-
-        if (copy_to_user(buf, port_buf, MAX_READ_SIZE) != 0)
+        if (copy_to_user(buf, port_buf, strlen(port_buf)) != 0)
                 return -EIO;
                 
-        *f_pos += count;
         return count;
 }
 
