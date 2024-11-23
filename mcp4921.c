@@ -16,10 +16,10 @@
 static struct class *my_class;
 static struct cdev my_cdev;
 static dev_t my_devt;
-static struct spi_device *dac_mcp4921_dev;
+static struct spi_device *mcp4921_spi_dev;
 
 
-void DAC_MCP4921_Set(unsigned int voltage_12bit)
+void mcp4921_set(unsigned int voltage_12bit)
 {
         unsigned int data = MCP4921_CFG_BITS | (voltage_12bit & 0x0fff);
         unsigned char spi_buff[2];
@@ -27,11 +27,11 @@ void DAC_MCP4921_Set(unsigned int voltage_12bit)
         spi_buff[0] = ( (data & 0xff00) >> 8 );
         spi_buff[1] = ( data & 0x00ff );
 
-        spi_write(dac_mcp4921_dev, spi_buff, 2);
+        spi_write(mcp4921_spi_dev, spi_buff, 2);
 }
 
 
-void DAC_MCP4921_Set_mV(unsigned int voltage_mV)
+void mcp4921_set_mV(unsigned int voltage_mV)
 {
         /* Konwersja Q16.15 do Q16.0 */
         unsigned int voltage_12bit = (((unsigned long)voltage_mV *
@@ -40,13 +40,13 @@ void DAC_MCP4921_Set_mV(unsigned int voltage_mV)
         pr_info("Set voltage to %d [mV]\n", voltage_mV);
         pr_info("Set voltage to %d [12bit]\n", voltage_12bit);
 
-        DAC_MCP4921_Set(voltage_12bit);
+        mcp4921_set(voltage_12bit);
 }
 
 
 /*-------------------- Obsługa urządzenia znakowego --------------------*/
 /* Funkcja wywoływana podczas zapisywania do pliku urządzenia */
-static ssize_t device_write(struct file *filp, const char *buf,
+static ssize_t mcp4921_write(struct file *filp, const char *buf,
                            size_t count, loff_t *f_pos) 
 {
         char kspace_buffer[MAX_WRITE_SIZE] = "";
@@ -77,7 +77,7 @@ static ssize_t device_write(struct file *filp, const char *buf,
                 return -EINVAL;
         }
 
-        DAC_MCP4921_Set_mV(voltage_mV);
+        mcp4921_set_mV(voltage_mV);
 
         return count;
 }
@@ -87,17 +87,17 @@ static ssize_t device_write(struct file *filp, const char *buf,
    wykonania na pliku urządzenia */
 static struct file_operations fops = {
         .owner=THIS_MODULE,
-        .write=device_write
+        .write=mcp4921_write
 };
 /*----------------------------------------------------------------------*/
 
 
-static int mtm_probe(struct spi_device *dev)
+static int mcp4921_probe(struct spi_device *dev)
 {
         dev_info(&dev->dev, "SPI DAC Driver Probed\n");
 
         /* Zapisanie wskaźnika do urządzenia SPI */
-        dac_mcp4921_dev = dev;
+        mcp4921_spi_dev = dev;
 
         /* Zaalokowanie numerów MAJOR i MINOR dla urządzenia */
         alloc_chrdev_region(&my_devt, 0, 1, MY_DEV_NAME);
@@ -122,7 +122,7 @@ static int mtm_probe(struct spi_device *dev)
 }
 
 
-static int mtm_remove(struct spi_device *dev)
+static void mcp4921_remove(struct spi_device *dev)
 {
         dev_info(&dev->dev, "SPI DAC Driver Removed\n");
 
@@ -138,28 +138,26 @@ static int mtm_remove(struct spi_device *dev)
 
         /* Zwolnienie przypisanych numerów MAJOR i MINOR */
         unregister_chrdev_region(my_devt, 1);
-        
-        return 0;
 }
 
 
-static const struct of_device_id mtm_of_id[] = {
-        { .compatible = "microchip,my_dac" },
+static const struct of_device_id mcp4921_of_id[] = {
+        { .compatible = "microchip,mcp4921_dac" },
         {},
 };
-MODULE_DEVICE_TABLE(of, mtm_of_id);   
+MODULE_DEVICE_TABLE(of, mcp4921_of_id);   
 
 
-static struct spi_driver mtm_driver = {
+static struct spi_driver mcp4921_driver = {
         //.id_table = my_dac;
-        .probe = (void*) mtm_probe,
-        .remove = (void*) mtm_remove,
+        .probe = mcp4921_probe,
+        .remove = mcp4921_remove,
         .driver = {
-                .name = "my_dac",
-                .of_match_table = mtm_of_id,
+                .name = "mcp4921_dac",
+                .of_match_table = mcp4921_of_id,
                 .owner = THIS_MODULE,
         },
 };
-module_spi_driver(mtm_driver);
+module_spi_driver(mcp4921_driver);
 
 MODULE_LICENSE("GPL v2");
