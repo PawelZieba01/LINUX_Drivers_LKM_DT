@@ -1,5 +1,5 @@
 #include <linux/of.h>
-#include <linux/cdev.h>
+#include <linux/miscdevice.h>
 #include <linux/spi/spi.h>
 
 #define IO_WRITE_OPCODE 0x40
@@ -8,14 +8,10 @@
 #define IO_GPIO_REG 0x09
 
 #define MY_DEV_NAME "io_mcp23s09"
-#define MY_CLASS_NAME "spi_io_devices"
 
 #define MAX_WRITE_SIZE 10
 #define MAX_READ_SIZE 7
 
-static struct class *my_class;
-static struct cdev my_cdev;
-static dev_t my_devt;
 
 static struct spi_device *mcp23s09_spi_dev;
 
@@ -68,7 +64,7 @@ static ssize_t mcp23s09_write(struct file *filp, const char *buf,
                            size_t count, loff_t *f_pos) 
 {
         char kspace_buffer[MAX_WRITE_SIZE] = "";
-        int port_value, ret;
+        int port_value, res;
 
         pr_info("Write to device file.\n");
 
@@ -82,10 +78,10 @@ static ssize_t mcp23s09_write(struct file *filp, const char *buf,
                 return -EFAULT;		
         }
 
-        ret = kstrtol(kspace_buffer, 0, (long*)&port_value);
-        if (ret) {
+        res = kstrtol(kspace_buffer, 0, (long*)&port_value);
+        if (res) {
                 pr_err("Can't convert data to integer\n");
-                return ret;
+                return res;
         }
 
         if (port_value < 0x00  ||  port_value > 0xff) {
@@ -126,35 +122,30 @@ static struct file_operations fops = {
         .write = mcp23s09_write,
         .read = mcp23s09_read
 };
+
+
+struct miscdevice mcp23s09_device = {
+    .minor = MISC_DYNAMIC_MINOR,
+    .name = MY_DEV_NAME,
+    .fops = &fops,
+};
 /*------------------------------------------------------------------*/
 
 
 static int mcp23s09_probe(struct spi_device *dev)
 {
+        int res;
+
         dev_info(&dev->dev, "SPI IO Driver Probed\n");
+        
+        mcp23s09_spi_dev = dev;              
 
-        /* Zapisanie wskaźnika do urządzenia SPI */
-        mcp23s09_spi_dev = dev;
+        res = misc_register(&mcp23s09_device);
 
-        /* Zaalokowanie numerów MAJOR i MINOR dla urządzenia */
-        alloc_chrdev_region(&my_devt, 0, 1, MY_DEV_NAME);
-
-        /* Stworzenie klasy urządzeń, widocznej w /sys/class */
-        my_class = class_create(THIS_MODULE, MY_CLASS_NAME);
-
-        /* Inicjalizacja urządzenia znakowego - podpięcie funkcji
-           do operacji na plikach (file operations) */
-        cdev_init(&my_cdev, &fops);
-
-        /* Dodanie urządzenia do systemu */
-        cdev_add(&my_cdev, my_devt, 1);
-
-        /* Stworzenie pliku w przestrzeni użytkownika (w /dev),
-           reprezentującego urządzenie */
-        device_create(my_class, NULL, my_devt, NULL, MY_DEV_NAME);
-
-        dev_info(&dev->dev, "Alocated device MAJOR number: %d\n",
-                 MAJOR(my_devt));
+        if (res) {
+                pr_err("Misc device registration failed!");
+                return res;
+        }
         
         return 0;
 }
@@ -164,18 +155,7 @@ static void mcp23s09_remove(struct spi_device *dev)
 {
         dev_info(&dev->dev, "SPI IO Driver Removed\n");
 
-         /* Usunięcie pliku urządzenia z przestrzeni użytkownika */
-        device_destroy(my_class, my_devt);
-
-        /* Usunięcie urządzenia z systemu */
-        cdev_del(&my_cdev);
-
-        /* Usunięcie klasy urządzenia */
-        class_unregister(my_class);
-        class_destroy(my_class);
-
-        /* Zwolnienie przypisanych numerów MAJOR i MINOR */
-        unregister_chrdev_region(my_devt, 1);
+        misc_deregister(&mcp23s09_device);
 }
 
 
