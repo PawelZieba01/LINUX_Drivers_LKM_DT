@@ -1,4 +1,5 @@
 # Device Tree Basic
 
-Ta gałąź zawiera rozwiązanie do kolokwium 4_DrzewoUrządzeń z przedmiotu aghmtmlinux
-Zmodyfikowano sposób kojarzenia sterowników z urządzeniem DT na dopasowanie na podstawie 'compatible'
+Ten kod przedstawia problem użycia globalnej zmiennej przez wiele urządzeń obsługiwanych przez jeden sterownik.
+
+Tworzymy dodatkowy węzeł, w Device Tree, a każde urządzenie w funkcji probe inkrementuje licznik instancji sterownika.

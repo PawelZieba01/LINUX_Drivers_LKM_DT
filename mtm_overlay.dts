@@ -8,10 +8,12 @@
                 target-path = "/";
 
                 __overlay__ {
-                        mtm_device {
+                        mtm_device_1 {
                                 compatible = "mtm";
-                                string_param = "mtm device param";
-                                int_param = <17>;
+                        };
+
+                        mtm_device_2 {
+                                compatible = "mtm";
                         };
                 };
         };
