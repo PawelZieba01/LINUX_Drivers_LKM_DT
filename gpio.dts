@@ -8,10 +8,10 @@
                 target-path = "/";
 
                 __overlay__ {
-                        mtm_device {
-                                compatible = "mtm";
-                                string_param = "mtm device param";
-                                int_param = <17>;
+                        led_btn {
+                                compatible = "mtm,gpio";
+                                led-gpio = <&gpio 25 0>;
+                                btn-gpio = <&gpio 17 0x11>;
                         };
                 };
         };
