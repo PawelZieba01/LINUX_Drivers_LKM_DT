@@ -8,10 +8,24 @@
                 target-path = "/";
 
                 __overlay__ {
-                        led_btn {
+                        led0 {
+                                compatible = "mtm,gpio";
+                                led-gpio = <&gpio 22 0>;
+                        };
+
+                        led1 {
                                 compatible = "mtm,gpio";
                                 led-gpio = <&gpio 25 0>;
-                                btn-gpio = <&gpio 17 0x11>;
+                        };
+
+                        led2 {
+                                compatible = "mtm,gpio";
+                                led-gpio = <&gpio 5 0>;
+                        };
+
+                        led3 {
+                                compatible = "mtm,gpio";
+                                led-gpio = <&gpio 16 0>;
                         };
                 };
         };
