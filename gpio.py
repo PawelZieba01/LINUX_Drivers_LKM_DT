@@ -2,6 +2,8 @@ from time import sleep
 import curses
 from math import floor
 
+curses.KEY_ENTER = 10
+
 class led_driver:
         def __init__(self, led):
                 self.LED_PATH = "/sys/devices/platform/led" + str(led) + "/value"
@@ -34,7 +36,6 @@ class led_driver:
                 else:
                         self.on()
                         return 1
-
 
 class box:
         def __init__(self, screen, x, y, str, w, h):
@@ -98,12 +99,14 @@ def main(stdscr):
         curses.start_color()
         curses.init_pair(1, curses.COLOR_WHITE, curses.COLOR_GREEN)
         curses.init_pair(2, curses.COLOR_WHITE, curses.COLOR_RED)
+        curses.init_pair(3, curses.COLOR_GREEN, curses.COLOR_BLACK)
+        curses.init_pair(4, curses.COLOR_MAGENTA, curses.COLOR_BLACK)
 
 
-        leds = [led(stdscr, 3, 3, "LED_1"),
-                led(stdscr, 3, 7, "LED_2"),
-                led(stdscr, 3, 11, "LED_3"),
-                led(stdscr, 3, 15, "LED_4")]
+        leds = [led(stdscr, 5, 3, "LED_0"),
+                led(stdscr, 5, 7, "LED_1"),
+                led(stdscr, 5, 11, "LED_2"),
+                led(stdscr, 5, 15, "LED_3")]
         
         leds_drv = [led_driver(0),
                     led_driver(1),
@@ -116,21 +119,17 @@ def main(stdscr):
         curses.curs_set(0)
 
         while True:
+                # debug
+                stdscr.addstr(0, 50, "Debug data:", curses.A_BOLD | curses.color_pair(3))
+                stdscr.addstr(1, 50, "led_pointer: " + str(led_pointer), curses.color_pair(3))
+                stdscr.addstr(2, 50, "last user key: " + str(user_char), curses.color_pair(3))
 
-                # User input controll
-                if (user_char == curses.KEY_DOWN):
-                        led_pointer += 1
-                        if (led_pointer == len(leds)): led_pointer = 0
-                elif (user_char == curses.KEY_UP):
-                        led_pointer -= 1
-                        if (led_pointer < 0): led_pointer = len(leds)-1
-                elif (user_char == curses.KEY_RIGHT):
-                        state = leds_drv[led_pointer].toggle()
-                        if (state):
-                                leds[led_pointer].on()
-                        else:
-                                leds[led_pointer].off()
-                                
+                # legend
+                stdscr.addstr(5, 50, "CONTROLS:", curses.A_BOLD | curses.color_pair(3))
+                stdscr.addstr(6, 50, "ARROW UP,  ARROW DOWN,  ENTER", curses.color_pair(3))
+
+                # Title
+                stdscr.addstr(0, 0, "Simple terminal app to control gpio driver", curses.A_BOLD | curses.color_pair(4))
 
                 # Led pointer controll
                 for i, led_i in enumerate(leds):
@@ -140,10 +139,26 @@ def main(stdscr):
                                 led_i.deactivate()
 
                         led_i.draw()
-                
-                
-                stdscr.refresh()
+
+
+                # User input controll
                 user_char = stdscr.getch()
+
+                if (user_char == curses.KEY_DOWN):
+                        led_pointer += 1
+                        if (led_pointer == len(leds)): led_pointer = 0
+                elif (user_char == curses.KEY_UP):
+                        led_pointer -= 1
+                        if (led_pointer < 0): led_pointer = len(leds)-1
+                elif (user_char == curses.KEY_ENTER):
+                        state = leds_drv[led_pointer].toggle()
+                        if (state):
+                                leds[led_pointer].on()
+                        else:
+                                leds[led_pointer].off()
+                
+                
+                stdscr.erase()
                 
 curses.wrapper(main)
 
