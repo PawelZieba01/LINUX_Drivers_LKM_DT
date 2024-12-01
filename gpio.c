@@ -2,71 +2,42 @@
 #include <linux/slab.h>
 #include <linux/platform_device.h>
 #include "linux/gpio/consumer.h"
-
-struct gpio_dev_data {
-        struct gpio_desc *pin;
-};
+#include "linux/timer.h"
 
 
-static ssize_t value_show(struct device *dev,
-                              struct device_attribute *attr, char *buf)
+static struct gpio_desc *led;
+static struct gpio_desc *btn;
+static struct timer_list timer;
+
+
+static void timer_callback(struct timer_list * timer)
 {
-        int val;
-        struct gpio_dev_data *dev_data = dev_get_drvdata(dev);
-        
-        val = gpiod_get_value(dev_data->pin);
-
-        return sprintf(buf, "%lu\n", (unsigned long)val);
+        int btn_state = gpiod_get_value(btn);
+        gpiod_set_value(led, btn_state);
+        mod_timer(timer, jiffies + msecs_to_jiffies(100));
 }
-
-
-static ssize_t value_store(struct device *dev,
-                                    struct device_attribute *attr,
-                                    const char *buf, size_t count)
-{
-        int res, val;
-        struct gpio_dev_data *dev_data;
-
-        dev_data = dev_get_drvdata(dev);
-
-        res = kstrtol(buf, 0, (unsigned long*)&val);
-        if (res)
-                return res;
-
-        gpiod_set_value(dev_data->pin, val);
-
-        return count;
-}
-DEVICE_ATTR_RW(value);
 
 
 static int gpio_probe(struct platform_device *dev)
 {    
-        struct gpio_dev_data *dev_data;
+        timer_setup(&timer, &timer_callback, 0);
+        mod_timer(&timer, jiffies + msecs_to_jiffies(100));
 
         dev_info(&dev->dev, "probed\n");
-
-        device_create_file(&dev->dev, &dev_attr_value);
-
-        dev_data = kzalloc(sizeof(struct gpio_dev_data), GFP_KERNEL);
-        dev_data->pin = devm_gpiod_get(&dev->dev, "led", GPIOD_OUT_LOW);
-        dev_set_drvdata(&dev->dev, dev_data);
         
+        led = devm_gpiod_get(&dev->dev, "led", GPIOD_OUT_LOW);
+        btn = devm_gpiod_get(&dev->dev, "btn", GPIOD_IN);
+             
         return 0;
 }
 
 
 static int gpio_remove(struct platform_device *dev)
 {
-        struct gpio_dev_data *dev_data;
-
         dev_info(&dev->dev, "removed\n");
 
-        dev_data = dev_get_drvdata(&dev->dev);
-
-        kfree(dev_data);
-
-        device_remove_file(&dev->dev, &dev_attr_value);
+        gpiod_set_value(led, 0);
+        del_timer_sync(&timer);
 
         return 0;
 }
