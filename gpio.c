@@ -9,19 +9,41 @@ static struct gpio_descs *leds;
 static struct gpio_desc *btn;
 static struct timer_list timer;
 
+static int leds_values;
+
+static ssize_t value_store(struct device *dev, 
+                                       struct device_attribute *attr, 
+                                       const char *buf, size_t count)
+{
+        int res;
+        
+        res = kstrtol(buf, 0, (long int*)(&leds_values));
+
+        if (res)
+                return res;
+
+        return count;
+}
+DEVICE_ATTR_WO(value);
+
+
 static void set_leds(int val)
 {
         int led_ctr = 0;
         for (led_ctr=0 ; led_ctr<4 ; led_ctr++)
-                gpiod_set_value(leds->desc[led_ctr], val);
-        
+                gpiod_set_value(leds->desc[led_ctr], ((val>>led_ctr)&0x01));
 }
 
 
 static void timer_callback(struct timer_list * timer)
 {
         int btn_state = gpiod_get_value(btn);
-        set_leds(btn_state);
+
+        if(btn_state == 1)
+                set_leds(leds_values);
+        else
+                set_leds(0);
+
         mod_timer(timer, jiffies + msecs_to_jiffies(100));
 }
 
@@ -32,6 +54,8 @@ static int gpio_probe(struct platform_device *dev)
         mod_timer(&timer, jiffies + msecs_to_jiffies(100));
 
         dev_info(&dev->dev, "probed\n");
+
+        device_create_file(&dev->dev, &dev_attr_value);
         
         leds = devm_gpiod_get_array(&dev->dev, "leds", GPIOD_OUT_LOW);
         btn = devm_gpiod_get(&dev->dev, "btn", GPIOD_IN);
@@ -46,6 +70,7 @@ static int gpio_remove(struct platform_device *dev)
 
         set_leds(0);
         del_timer_sync(&timer);
+        device_remove_file(&dev->dev, &dev_attr_value);
 
         return 0;
 }
