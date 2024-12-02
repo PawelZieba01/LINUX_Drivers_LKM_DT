@@ -9,22 +9,36 @@ static struct gpio_descs *leds;
 static struct gpio_desc *btn;
 static struct timer_list timer;
 
-static int leds_values;
+enum servo_state {IDLE, STEP_LEFT, STEP_RIGHT};
 
-static ssize_t value_store(struct device *dev, 
+struct servo {
+        enum servo_state state;
+        int current_pos;
+        int desired_pos;
+        int led_ctr;
+};
+
+static struct servo servo_data = {
+        .state = IDLE,
+        .current_pos = 0,
+        .desired_pos = 0,
+        .led_ctr = 0,
+};
+
+static ssize_t servo_desired_pos_store(struct device *dev, 
                                        struct device_attribute *attr, 
                                        const char *buf, size_t count)
 {
         int res;
         
-        res = kstrtol(buf, 0, (long int*)(&leds_values));
+        res = kstrtol(buf, 0, (long int*)(&servo_data.desired_pos));
 
         if (res)
                 return res;
 
         return count;
 }
-DEVICE_ATTR_WO(value);
+DEVICE_ATTR_WO(servo_desired_pos);
 
 
 static void set_leds(int val)
@@ -34,16 +48,65 @@ static void set_leds(int val)
                 gpiod_set_value(leds->desc[led_ctr], ((val>>led_ctr)&0x01));
 }
 
+static void set_led(int led)
+{
+        set_leds(0x01 << led);
+}
+
+
+static void step_left(void)
+{
+        servo_data.led_ctr--;
+        if (servo_data.led_ctr < 0)
+                servo_data.led_ctr = 3;
+}
+
+
+static void step_right(void)
+{
+        servo_data.led_ctr++;
+        if (servo_data.led_ctr > 3)
+                servo_data.led_ctr = 0;
+}
+
 
 static void timer_callback(struct timer_list * timer)
 {
-        int btn_state = gpiod_get_value(btn);
+        switch (servo_data.state) {
+                case IDLE:
+                        if (servo_data.current_pos > servo_data.desired_pos)
+                                servo_data.state = STEP_LEFT;
+                        else if (servo_data.current_pos < servo_data.desired_pos)
+                                servo_data.state = STEP_RIGHT;
+                        else
+                                servo_data.state = IDLE;
+                        break;
 
-        if(btn_state == 1)
-                set_leds(leds_values);
-        else
-                set_leds(0);
+                case STEP_LEFT:
+                        if (servo_data.current_pos > servo_data.desired_pos) {
+                                step_left();
+                                servo_data.current_pos--;
+                                servo_data.state = STEP_LEFT;
+                        } else {
+                                servo_data.state = IDLE;
+                        }     
+                        break;
 
+                case STEP_RIGHT:
+                        if(servo_data.current_pos < servo_data.desired_pos) {
+                                step_right();
+                                servo_data.current_pos++;
+                                servo_data.state = STEP_RIGHT;
+                        } else {
+                                servo_data.state = IDLE;
+                        }
+                        break;
+
+                default:
+                        break;
+        }
+
+        set_led(servo_data.led_ctr);
         mod_timer(timer, jiffies + msecs_to_jiffies(100));
 }
 
@@ -55,7 +118,7 @@ static int gpio_probe(struct platform_device *dev)
 
         dev_info(&dev->dev, "probed\n");
 
-        device_create_file(&dev->dev, &dev_attr_value);
+        device_create_file(&dev->dev, &dev_attr_servo_desired_pos);
         
         leds = devm_gpiod_get_array(&dev->dev, "leds", GPIOD_OUT_LOW);
         btn = devm_gpiod_get(&dev->dev, "btn", GPIOD_IN);
@@ -70,7 +133,7 @@ static int gpio_remove(struct platform_device *dev)
 
         set_leds(0);
         del_timer_sync(&timer);
-        device_remove_file(&dev->dev, &dev_attr_value);
+        device_remove_file(&dev->dev, &dev_attr_servo_desired_pos);
 
         return 0;
 }
