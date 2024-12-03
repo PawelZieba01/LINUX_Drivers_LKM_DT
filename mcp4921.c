@@ -2,6 +2,7 @@
 #include <linux/cdev.h>
 #include <linux/miscdevice.h>
 #include <linux/ioctl.h>
+#include <linux/uaccess.h>
 
 
 #define MY_DEV_NAME "dac_mcp4921"
@@ -17,8 +18,8 @@
 #define DAC_RESET _IO('k', 0)
 #define DAC_ENABLE _IO('k', 1)
 #define DAC_DISABLE _IO('k', 2)
-#define DAC_GAIN _IOW('k', 3, int)
-#define DAC_OUT_BUFF _IOW('k', 4, int)
+#define DAC_GAIN _IOW('k', 3, unsigned long)
+#define DAC_VREF_BUFF _IOW('k', 4, unsigned long)
 
 
 static struct spi_device *mcp4921_spi_dev;
@@ -41,6 +42,7 @@ void mcp4921_set(unsigned int voltage_12bit)
         unsigned int cfg_bits = (mcp4921_data.vref_buf_bit << 14) |
                                 (mcp4921_data.gain_bit << 13) |
                                 (mcp4921_data.enable_bit << 12);
+        pr_info("CFG: %x [mV]\n", cfg_bits);
         unsigned int data = cfg_bits | (voltage_12bit & 0x0fff);
         unsigned char spi_buff[2];
         
@@ -83,8 +85,6 @@ static ssize_t mcp4921_write(struct file *filp, const char *buf,
                 return -EFAULT;		
         }
 
-        pr_info("%s\n", kspace_buffer);
-
         ret = kstrtol(kspace_buffer, 0, (long*)&voltage_mV);
         if (ret) {
                 pr_err("Can't convert data to integer\n");
@@ -104,44 +104,43 @@ static ssize_t mcp4921_write(struct file *filp, const char *buf,
 
 static long mcp4921_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 {
-        int res, value;
+        unsigned long value;
+
         switch(cmd) {
+                
                 case DAC_RESET:
+                        pr_info("run DAC_RESET command\n");
                         mcp4921_data.vref_buf_bit = 0;
                         mcp4921_data.gain_bit = 1;
                         mcp4921_data.enable_bit = 1;
                         break;
 
                 case DAC_ENABLE:
+                        pr_info("run DAC_ENABLE command\n");
                         mcp4921_data.enable_bit = 1;
                         break;
 
                 case DAC_DISABLE:
-                        mcp4921_data.enable_bit = 1;
+                        pr_info("run DAC_DISABLE command\n");
+                        mcp4921_data.enable_bit = 0;
                         break;
 
                 case DAC_GAIN:
-                        res = copy_from_user(&value, (int*)arg, sizeof(value));
-                        if (res) {
-                                pr_err("IOCTL: Dac gain set error!\n");
-                                return res;
-                        }
-
+                        pr_info("run DAC_GAIN command\n");
+                        copy_from_user(&value, (unsigned long*)arg, sizeof(value));
+                        pr_info("VALUE: %d\n", value);
                         if(value != 0 && value != 1) {
                                 pr_err("IOCTL: Dac gain wrong value!\n");
                                 return -EINVAL;
                         }
 
-                        mcp4921_data.enable_bit = value;
+                        mcp4921_data.gain_bit = value;
                         break;
 
-                case DAC_OUT_BUFF:
-                        res = copy_from_user(&value, (int*)arg, sizeof(value));
-                        if (res) {
-                                pr_err("IOCTL: Dac vref_buff set error!\n");
-                                return res;
-                        }
-
+                case DAC_VREF_BUFF:
+                        pr_info("run DAC_VREF_BUFF command\n");
+                        copy_from_user(&value, (unsigned long*)arg, sizeof(value));
+                        pr_info("VALUE: %d\n", value);
                         if(value != 0 && value != 1) {
                                 pr_err("IOCTL: Dac vref_buff wrong value!\n");
                                 return -EINVAL;
