@@ -1,10 +1,10 @@
 #include <linux/spi/spi.h>
 #include <linux/cdev.h>
 #include <linux/miscdevice.h>
+#include <linux/ioctl.h>
 
 
 #define MY_DEV_NAME "dac_mcp4921"
-#define SPI_BUS 0
 #define DAC_MCP4921_REF_VOLTAGE_mV 3300
 #define MCP4921_CFG_BITS (0x03 << 12)           /* Kanal A, Unbuffered Vref,
                                                    Gain=1, DAC Enable */
@@ -12,15 +12,36 @@
                                                    (1mV to wartość 1,2412 
                                                    dla przetwornika) */
 #define MAX_WRITE_SIZE 10                       /* 4 znaki na liczbę i jeden 
-                                                   znak Null */                                                   
+                                                   znak Null */   
+
+#define DAC_RESET _IO('k', 0)
+#define DAC_ENABLE _IO('k', 1)
+#define DAC_DISABLE _IO('k', 2)
+#define DAC_GAIN _IOW('k', 3, int)
+#define DAC_OUT_BUFF _IOW('k', 4, int)
 
 
 static struct spi_device *mcp4921_spi_dev;
 
+struct mcp4921_dac {
+        bool vref_buf_bit;
+        bool gain_bit;
+        bool enable_bit;
+};
+
+static struct mcp4921_dac mcp4921_data = {
+        .vref_buf_bit = 0,
+        .gain_bit = 1,
+        .enable_bit = 1
+};
+
 
 void mcp4921_set(unsigned int voltage_12bit)
 {
-        unsigned int data = MCP4921_CFG_BITS | (voltage_12bit & 0x0fff);
+        unsigned int cfg_bits = (mcp4921_data.vref_buf_bit << 14) |
+                                (mcp4921_data.gain_bit << 13) |
+                                (mcp4921_data.enable_bit << 12);
+        unsigned int data = cfg_bits | (voltage_12bit & 0x0fff);
         unsigned char spi_buff[2];
         
         spi_buff[0] = ( (data & 0xff00) >> 8 );
@@ -81,9 +102,65 @@ static ssize_t mcp4921_write(struct file *filp, const char *buf,
 }
 
 
+static long mcp4921_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
+{
+        int res, value;
+        switch(cmd) {
+                case DAC_RESET:
+                        mcp4921_data.vref_buf_bit = 0;
+                        mcp4921_data.gain_bit = 1;
+                        mcp4921_data.enable_bit = 1;
+                        break;
+
+                case DAC_ENABLE:
+                        mcp4921_data.enable_bit = 1;
+                        break;
+
+                case DAC_DISABLE:
+                        mcp4921_data.enable_bit = 1;
+                        break;
+
+                case DAC_GAIN:
+                        res = copy_from_user(&value, (int*)arg, sizeof(value));
+                        if (res) {
+                                pr_err("IOCTL: Dac gain set error!\n");
+                                return res;
+                        }
+
+                        if(value != 0 && value != 1) {
+                                pr_err("IOCTL: Dac gain wrong value!\n");
+                                return -EINVAL;
+                        }
+
+                        mcp4921_data.enable_bit = value;
+                        break;
+
+                case DAC_OUT_BUFF:
+                        res = copy_from_user(&value, (int*)arg, sizeof(value));
+                        if (res) {
+                                pr_err("IOCTL: Dac vref_buff set error!\n");
+                                return res;
+                        }
+
+                        if(value != 0 && value != 1) {
+                                pr_err("IOCTL: Dac vref_buff wrong value!\n");
+                                return -EINVAL;
+                        }
+
+                        mcp4921_data.vref_buf_bit = value;
+                        break;
+
+                default:
+                        break;
+        }
+        return 0;
+}
+
+
 static struct file_operations fops = {
         .owner=THIS_MODULE,
-        .write=mcp4921_write
+        .write=mcp4921_write,
+        .unlocked_ioctl = mcp4921_ioctl
 };
 
 
