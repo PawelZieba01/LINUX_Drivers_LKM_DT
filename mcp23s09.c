@@ -1,6 +1,7 @@
 #include <linux/of.h>
 #include <linux/miscdevice.h>
 #include <linux/spi/spi.h>
+#include <linux/regmap.h>
 
 #define IO_WRITE_OPCODE 0x40
 #define IO_READ_OPCODE 0x41
@@ -14,6 +15,7 @@
 
 
 static struct spi_device *mcp23s09_spi_dev;
+static struct regmap *mcp23s09_regmap;
 
 
 void mcp23s09_set_port(unsigned char port_value)
@@ -56,6 +58,8 @@ unsigned char mcp23s09_get_port(void)
 
         return spi_rx_buff[0];
 }
+
+
 
 
 /*------------------ Obsługa urządzenia znakowego ------------------*/
@@ -117,14 +121,16 @@ static ssize_t mcp23s09_read(struct file *filp, char *buf, size_t count,
 
 /* Struktura przechowująca informacje o operacjach możliwych do
    wykonania na pliku urządzenia */
-static struct file_operations fops = {
+static struct file_operations fops = 
+{
         .owner = THIS_MODULE,
         .write = mcp23s09_write,
         .read = mcp23s09_read
 };
 
 
-struct miscdevice mcp23s09_device = {
+struct miscdevice mcp23s09_device = 
+{
     .minor = MISC_DYNAMIC_MINOR,
     .name = MY_DEV_NAME,
     .fops = &fops,
@@ -132,21 +138,60 @@ struct miscdevice mcp23s09_device = {
 /*------------------------------------------------------------------*/
 
 
+/*----------------------------- REGMAP -----------------------------*/
+static const struct regmap_range drv_wr_rd_range[] = 
+{
+        {
+                .range_min = IO_DIR_REG,
+                .range_max = IO_DIR_REG,
+        } , {
+                .range_min = IO_GPIO_REG,
+                .range_max = IO_GPIO_REG,
+        }
+};
+
+static struct regmap_access_table drv_wr_table =
+{
+        .yes_ranges = drv_wr_rd_range,
+        .n_yes_ranges = ARRAY_SIZE(drv_wr_rd_range)
+};
+
+static struct regmap_access_table drv_rd_table =
+{
+        .yes_ranges = drv_wr_rd_range,
+        .n_yes_ranges = ARRAY_SIZE(drv_wr_rd_range)
+};
+/*------------------------------------------------------------------*/
+
+
 static int mcp23s09_probe(struct spi_device *dev)
 {
         int res;
+        struct regmap_config reg_conf;
 
         dev_info(&dev->dev, "SPI IO Driver Probed\n");
         
         mcp23s09_spi_dev = dev;              
 
+        /* misc device create */
         res = misc_register(&mcp23s09_device);
-
         if (res) {
                 pr_err("Misc device registration failed!");
                 return res;
         }
-        
+
+        /* regmap config */
+        memset(&reg_conf, 0, sizeof(reg_conf));
+        reg_conf.reg_bits = 8;
+        reg_conf.val_bits = 8;
+        reg_conf.max_register = 0x0a;
+        reg_conf.write_flag_mask = IO_WRITE_OPCODE;
+        reg_conf.read_flag_mask = IO_READ_OPCODE;
+        reg_conf.wr_table = &drv_wr_table;
+        reg_conf.rd_table = &drv_rd_table;
+
+        /* regmap init */
+        //mcp23s09_regmap = devm_regmap_init_spi(dev, &reg_conf);
         return 0;
 }
 
@@ -154,6 +199,9 @@ static int mcp23s09_probe(struct spi_device *dev)
 static void mcp23s09_remove(struct spi_device *dev)
 {
         dev_info(&dev->dev, "SPI IO Driver Removed\n");
+
+        //if (mcp23s09_regmap)
+                //regmap_exit(mcp23s09_regmap);
 
         misc_deregister(&mcp23s09_device);
 }
