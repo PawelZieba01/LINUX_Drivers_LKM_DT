@@ -191,19 +191,31 @@ static int mcp23s09_probe(struct spi_device *dev)
         reg_conf.rd_table = &drv_rd_table;
 
         /* regmap init */
-        //mcp23s09_regmap = devm_regmap_init_spi(dev, &reg_conf);
+        mcp23s09_regmap = devm_regmap_init_spi(dev, &reg_conf);
         return 0;
 }
+
+
+// /**
+//  * devm_regmap_init_spmi_base() - Create managed regmap for Base register space
+//  *
+//  * @dev:	SPMI device that will be interacted with
+//  * @config:	Configuration for register map
+//  *
+//  * The return value will be an ERR_PTR() on error or a valid pointer
+//  * to a struct regmap.  The regmap will be automatically freed by the  <-------------------!!!!
+//  * device management code.
+//  */
+// #define devm_regmap_init_spmi_base(dev, config)				\
+// 	__regmap_lockdep_wrapper(__devm_regmap_init_spmi_base, #config,	\
+// 				dev, config)
 
 
 static void mcp23s09_remove(struct spi_device *dev)
 {
         dev_info(&dev->dev, "SPI IO Driver Removed\n");
-
-        //if (mcp23s09_regmap)
-                //regmap_exit(mcp23s09_regmap);
-
         misc_deregister(&mcp23s09_device);
+        //regmap jest usuwany automatycznie!!!
 }
 
 
