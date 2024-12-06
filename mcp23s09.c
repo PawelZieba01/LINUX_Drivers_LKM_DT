@@ -20,7 +20,7 @@ static struct regmap *mcp23s09_regmap;
 
 void mcp23s09_set_port(unsigned char port_value)
 {
-        unsigned char spi_buff[6] = {
+        unsigned char data_buff[] = {
                 IO_WRITE_OPCODE,
                 IO_DIR_REG,
                 0x00,
@@ -29,12 +29,12 @@ void mcp23s09_set_port(unsigned char port_value)
                 port_value
         };
         
-        pr_info("Set port value to %x \n", port_value);
+        pr_info("Set port value to %x\n", port_value);
 
-        spi_write(mcp23s09_spi_dev, &spi_buff[0], 3);    /* Ustawienie pinów 
-                                                           jako wyjścia */
-        spi_write(mcp23s09_spi_dev, &spi_buff[3], 3);    /* Ustawienie wartości
-                                                           pinów */
+        /* Ustawienie kierunku portu jako wyjście */
+        regmap_raw_write(mcp23s09_regmap, data_buff[0], &data_buff[1], 2);   
+        /* Ustawienie wartości portu */                     
+        regmap_raw_write(mcp23s09_regmap, data_buff[3], &data_buff[4], 2);
 }
 
 
@@ -58,8 +58,6 @@ unsigned char mcp23s09_get_port(void)
 
         return spi_rx_buff[0];
 }
-
-
 
 
 /*------------------ Obsługa urządzenia znakowego ------------------*/
@@ -139,28 +137,19 @@ struct miscdevice mcp23s09_device =
 
 
 /*----------------------------- REGMAP -----------------------------*/
-static const struct regmap_range drv_wr_rd_range[] = 
+static bool writeable_reg(struct device *dev, unsigned int reg)
 {
-        {
-                .range_min = IO_DIR_REG,
-                .range_max = IO_DIR_REG,
-        } , {
-                .range_min = IO_GPIO_REG,
-                .range_max = IO_GPIO_REG,
-        }
-};
-
-static struct regmap_access_table drv_wr_table =
+        if (reg == IO_WRITE_OPCODE)
+                return true;
+        return false;
+}
+  
+static bool readable_reg(struct device *dev, unsigned int reg)
 {
-        .yes_ranges = drv_wr_rd_range,
-        .n_yes_ranges = ARRAY_SIZE(drv_wr_rd_range)
-};
-
-static struct regmap_access_table drv_rd_table =
-{
-        .yes_ranges = drv_wr_rd_range,
-        .n_yes_ranges = ARRAY_SIZE(drv_wr_rd_range)
-};
+        if (reg == IO_READ_OPCODE)
+                return true;
+        return false;
+}
 /*------------------------------------------------------------------*/
 
 
@@ -184,31 +173,15 @@ static int mcp23s09_probe(struct spi_device *dev)
         memset(&reg_conf, 0, sizeof(reg_conf));
         reg_conf.reg_bits = 8;
         reg_conf.val_bits = 8;
-        reg_conf.max_register = 0x0a;
-        reg_conf.write_flag_mask = IO_WRITE_OPCODE;
-        reg_conf.read_flag_mask = IO_READ_OPCODE;
-        reg_conf.wr_table = &drv_wr_table;
-        reg_conf.rd_table = &drv_rd_table;
+        reg_conf.write_flag_mask = 0;
+        reg_conf.read_flag_mask = 0;
+        reg_conf.writeable_reg = writeable_reg;
+        reg_conf.readable_reg = readable_reg;
 
         /* regmap init */
         mcp23s09_regmap = devm_regmap_init_spi(dev, &reg_conf);
         return 0;
 }
-
-
-// /**
-//  * devm_regmap_init_spmi_base() - Create managed regmap for Base register space
-//  *
-//  * @dev:	SPMI device that will be interacted with
-//  * @config:	Configuration for register map
-//  *
-//  * The return value will be an ERR_PTR() on error or a valid pointer
-//  * to a struct regmap.  The regmap will be automatically freed by the  <-------------------!!!!
-//  * device management code.
-//  */
-// #define devm_regmap_init_spmi_base(dev, config)				\
-// 	__regmap_lockdep_wrapper(__devm_regmap_init_spmi_base, #config,	\
-// 				dev, config)
 
 
 static void mcp23s09_remove(struct spi_device *dev)
