@@ -1,0 +1,21 @@
+/dts-v1/;
+/plugin/;
+
+
+/ {
+        compatible = "brcm,bcm2835";
+       
+        fragment@0 {
+                target = <&i2c1>;
+                __overlay__ {
+                        #address-cells = <1>;
+                        #size-cells = <0>;
+                                
+                        pcf8574_io: pcf8574_io@20{
+                                compatible = "microchip,pcf8574_io";
+                                reg = <0x20>;
+                                status = "okay";
+                        };
+                };
+        };
+};

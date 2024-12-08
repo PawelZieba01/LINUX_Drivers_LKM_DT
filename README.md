@@ -6,4 +6,8 @@ Jeśli `insmod` nie załaduje modułu, to należy użyć `modprobe`:
 - uruchomić `depmod`
 - załadować moduł za pomocą `modprobe`
   
-  `insmod` nie ładuje modułu bo moduł używa `regmap_spi` (to też jest moduł). `Modprobe` automatycznie ładuje zależności wymagane przez nasz moduł.
+  `insmod` nie ładuje modułu bo moduł używa `regmap_i2c` (to też jest moduł). `Modprobe` automatycznie ładuje zależności wymagane przez nasz moduł.
+
+  Układ PCF8574 wymaga wysłania:
+  - przy odczycie - `0xff`, aby ustawić kierunek pinów
+  - przy zapisie - `0x00`, ponieważ regmap zawsze wysyła zmienną `reg`, więc wyłączamy cały port, po czym kolejny bajt ustawia odpowiednie wartości wyjść.

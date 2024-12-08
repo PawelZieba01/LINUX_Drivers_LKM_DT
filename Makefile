@@ -1,4 +1,4 @@
-obj-m += mcp23s09.o
+obj-m += pcf8574.o
 
 # Polecenie uruchamiające proces budowania modułu jądra linux
 # -C oznacza wykoannie polecenia make w podanej ścieżce (ścieżka do plików środowiska buildowania modułów)
