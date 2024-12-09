@@ -15,40 +15,43 @@ static struct regmap *pcf8574_regmap;
 
 
 /*------------------ Obsługa urządzenia znakowego ------------------*/
-/* Funkcja wywoływana podczas zapisywania do pliku urządzenia */
+
 static ssize_t pcf8574_write(struct file *filp, const char *buf,
                            size_t count, loff_t *f_pos) 
 {
         char kspace_buffer[MAX_WRITE_SIZE] = "";
         int port_value, res;
 
-        pr_info("Write to device file.\n");
+        dev_info(&pcf8574_i2c_client->dev, "Write to device file.\n");
 
         if (count > MAX_WRITE_SIZE) {
-                pr_err("Bad input number.\n");
+                dev_err(&pcf8574_i2c_client->dev, "Bad input number.\n");
                 return -ERANGE;
         }
 
         res = copy_from_user(kspace_buffer, buf, count);
         if (res) {
-                pr_err("Can't copy data from user space.\n");
+                dev_err(&pcf8574_i2c_client->dev,
+                        "Can't copy data from user space.\n");
                 return -EFAULT;		
         }
 
         res = kstrtol(kspace_buffer, 0, (long*)&port_value);
         if (res) {
-                pr_err("Can't convert data to integer.\n");
+                dev_err(&pcf8574_i2c_client->dev,
+                        "Can't convert data to integer.\n");
                 return res;
         }
 
         if (port_value < 0x00  ||  port_value > 0xff) {
-                pr_err("Bad voltage value.\n");
+                dev_err(&pcf8574_i2c_client->dev, "Bad voltage value.\n");
                 return -EINVAL;
         }
 
-        res = regmap_write(pcf8574_regmap, 0, port_value);
+        res = regmap_write(pcf8574_regmap, 0x00, port_value);
         if (res) {
-                pr_err("I2C communication error.\n");
+                dev_err(&pcf8574_i2c_client->dev,
+                        "I2C communication error.\n");
                 return res;
         }
 
@@ -56,7 +59,6 @@ static ssize_t pcf8574_write(struct file *filp, const char *buf,
 }
 
 
-/* Funkcja wywoływana podczas czytania z pliku urządzenia */
 static ssize_t pcf8574_read(struct file *filp, char *buf, size_t count,
                            loff_t *f_pos)
 {
@@ -64,11 +66,12 @@ static ssize_t pcf8574_read(struct file *filp, char *buf, size_t count,
         unsigned int port_value; 
         unsigned char port_buf[MAX_READ_SIZE];
 
-        pr_info("Read from device file.\n");
+       dev_info(&pcf8574_i2c_client->dev, "Read from device file.\n");
 
         res = regmap_read(pcf8574_regmap, 0xff, &port_value);
         if (res) {
-                pr_err("I2C communication error.\n");
+                dev_err(&pcf8574_i2c_client->dev,
+                        "I2C communication error.\n");
                 return res;
         }
 
@@ -76,7 +79,8 @@ static ssize_t pcf8574_read(struct file *filp, char *buf, size_t count,
      
         res = copy_to_user(buf, port_buf, strlen(port_buf));
         if (res) {
-                pr_err("Can't copy data to uder space.\n");
+                dev_err(&pcf8574_i2c_client->dev,
+                        "Can't copy data to uder space.\n");
                 return -EIO;
         }
                 
@@ -85,8 +89,6 @@ static ssize_t pcf8574_read(struct file *filp, char *buf, size_t count,
 }
 
 
-/* Struktura przechowująca informacje o operacjach możliwych do
-   wykonania na pliku urządzenia */
 static struct file_operations fops = 
 {
         .owner = THIS_MODULE,
@@ -121,7 +123,8 @@ static bool readable_reg(struct device *dev, unsigned int reg)
 /*------------------------------------------------------------------*/
 
 
-static int pcf8574_probe(struct i2c_client *client,  const struct i2c_device_id *id)
+static int pcf8574_probe(struct i2c_client *client,
+                         const struct i2c_device_id *id)
 {
         int res;
         struct regmap_config reg_conf;
@@ -133,7 +136,8 @@ static int pcf8574_probe(struct i2c_client *client,  const struct i2c_device_id 
         /* misc device create */
         res = misc_register(&pcf8574_device);
         if (res) {
-                pr_err("Misc device registration failed!");
+                dev_err(&pcf8574_i2c_client->dev,
+                        "Misc device registration failed!");
                 return res;
         }
 
