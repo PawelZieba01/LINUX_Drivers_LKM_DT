@@ -18,45 +18,56 @@ static struct spi_device *mcp23s09_spi_dev;
 static struct regmap *mcp23s09_regmap;
 
 
-void mcp23s09_set_port(unsigned char port_value)
-{
-        unsigned char data_buff[] = {
-                IO_WRITE_OPCODE,
-                IO_DIR_REG,
-                0x00,
-                IO_WRITE_OPCODE,
-                IO_GPIO_REG,
-                port_value
-        };
-        
-        pr_info("Set port value to %x\n", port_value);
+int mcp23s09_set_port(unsigned int port_value)
+{               
+        int res;
+        dev_info(&mcp23s09_spi_dev->dev, "Set port value.\n");
 
         /* Ustawienie kierunku portu jako wyjście */
-        regmap_raw_write(mcp23s09_regmap, data_buff[0], &data_buff[1], 2);   
+        res = regmap_write(mcp23s09_regmap, (IO_WRITE_OPCODE << 8 |
+                                             IO_DIR_REG), 0x00);  
+        if (res) {
+                dev_err(&mcp23s09_spi_dev->dev, "SPI Communication write error.\n");
+                return res;
+        }
+
         /* Ustawienie wartości portu */                     
-        regmap_raw_write(mcp23s09_regmap, data_buff[3], &data_buff[4], 2);
+        res = regmap_write(mcp23s09_regmap, (IO_WRITE_OPCODE << 8 | 
+                                             IO_GPIO_REG), port_value);
+        if (res) {
+                dev_err(&mcp23s09_spi_dev->dev, "SPI Communication write error.\n");
+                return res;
+        }
+
+        return 0;
 }
 
 
-unsigned char mcp23s09_get_port(void)
+int mcp23s09_get_port(unsigned int *value)
 {
-        unsigned char spi_tx_buff[5] = {
-                IO_WRITE_OPCODE,
-                IO_DIR_REG,
-                0xff,
-                IO_READ_OPCODE,
-                IO_GPIO_REG
-        };
+        int res;
+        unsigned int spi_buff;
 
-        unsigned char spi_rx_buff[] = {0};
+        dev_info(&mcp23s09_spi_dev->dev, "Get port value.\n");
 
-        pr_info("Get port value.\n");
+        /* Ustawienie kierunku portu jako wejście */
+        res = regmap_write(mcp23s09_regmap, (IO_WRITE_OPCODE << 8 |
+                                             IO_DIR_REG), 0xff);
+        if (res) {
+                dev_err(&mcp23s09_spi_dev->dev, "SPI Communication write error.\n");
+                return res;
+        }
 
-        spi_write_then_read(mcp23s09_spi_dev, &spi_tx_buff[0], 3, 0, 0);
-        spi_write_then_read(mcp23s09_spi_dev, &spi_tx_buff[3], 2,
-                            &spi_rx_buff[0], 1);
+        /* Odczyt wartości portu */  
+        res = regmap_read(mcp23s09_regmap, (IO_READ_OPCODE << 8 | IO_GPIO_REG),
+                          &spi_buff);  
+        if (res) {
+                dev_err(&mcp23s09_spi_dev->dev, "SPI Communication read error.\n");
+                return res;
+        }
 
-        return spi_rx_buff[0];
+        *value = spi_buff;
+        return 0;
 }
 
 
@@ -64,34 +75,39 @@ unsigned char mcp23s09_get_port(void)
 /* Funkcja wywoływana podczas zapisywania do pliku urządzenia */
 static ssize_t mcp23s09_write(struct file *filp, const char *buf,
                            size_t count, loff_t *f_pos) 
-{
+{       
+        int res;
         char kspace_buffer[MAX_WRITE_SIZE] = "";
-        int port_value, res;
-
-        pr_info("Write to device file.\n");
+        unsigned int port_value;
+        
+        dev_info(&mcp23s09_spi_dev->dev, "Write to device file.\n");
 
         if (count > MAX_WRITE_SIZE) {
-                pr_err("Bad input number.\n");
+                dev_err(&mcp23s09_spi_dev->dev, "Bad input number.\n");
                 return -ERANGE;
         }
 
         if (copy_from_user(kspace_buffer, buf, count)) {
-                pr_err("Can't copy data from user space\n");
+                dev_err(&mcp23s09_spi_dev->dev, "Can't copy data from user space\n");
                 return -EFAULT;		
         }
 
         res = kstrtol(kspace_buffer, 0, (long*)&port_value);
         if (res) {
-                pr_err("Can't convert data to integer\n");
+                dev_err(&mcp23s09_spi_dev->dev, "Can't convert data to integer\n");
                 return res;
         }
 
         if (port_value < 0x00  ||  port_value > 0xff) {
-                pr_err("Bad voltage value\n");
+                dev_err(&mcp23s09_spi_dev->dev, "Bad voltage value\n");
                 return -EINVAL;
         }
 
-        mcp23s09_set_port(port_value);
+        res = mcp23s09_set_port(port_value);
+        if (res) {
+                dev_err(&mcp23s09_spi_dev->dev, "Can't set value to port.\n");
+                return res;
+        }
 
         return count;
 }
@@ -101,14 +117,19 @@ static ssize_t mcp23s09_write(struct file *filp, const char *buf,
 static ssize_t mcp23s09_read(struct file *filp, char *buf, size_t count,
                            loff_t *f_pos)
 {
-        unsigned char port_value; 
+        int res;
+        unsigned int port_value; 
         unsigned char port_buf[MAX_READ_SIZE];
 
-        pr_info("Read from device file.\n");
+        dev_info(&mcp23s09_spi_dev->dev, "Read from device file.\n");
 
-        port_value = mcp23s09_get_port();
+        res = mcp23s09_get_port(&port_value);
+        if (res) {
+                dev_err(&mcp23s09_spi_dev->dev, "Can't get port value.\n");
+                return res;
+        }
+
         sprintf(port_buf, "0x%X\n", port_value);
-     
 
         if (copy_to_user(buf, port_buf, strlen(port_buf)) != 0)
                 return -EIO;
@@ -139,14 +160,17 @@ struct miscdevice mcp23s09_device =
 /*----------------------------- REGMAP -----------------------------*/
 static bool writeable_reg(struct device *dev, unsigned int reg)
 {
-        if (reg == IO_WRITE_OPCODE)
-                return true;
+        switch (reg) {
+                case (IO_WRITE_OPCODE << 8 | IO_DIR_REG):
+                case (IO_WRITE_OPCODE << 8 | IO_GPIO_REG):
+                        return true;
+        }
         return false;
 }
   
 static bool readable_reg(struct device *dev, unsigned int reg)
 {
-        if (reg == IO_READ_OPCODE)
+        if (reg == (IO_READ_OPCODE << 8 | IO_GPIO_REG))
                 return true;
         return false;
 }
@@ -165,16 +189,14 @@ static int mcp23s09_probe(struct spi_device *dev)
         /* misc device create */
         res = misc_register(&mcp23s09_device);
         if (res) {
-                pr_err("Misc device registration failed!");
+                dev_err(&dev->dev, "Misc device registration failed!");
                 return res;
         }
 
         /* regmap config */
         memset(&reg_conf, 0, sizeof(reg_conf));
-        reg_conf.reg_bits = 8;
+        reg_conf.reg_bits = 16;
         reg_conf.val_bits = 8;
-        reg_conf.write_flag_mask = 0;
-        reg_conf.read_flag_mask = 0;
         reg_conf.writeable_reg = writeable_reg;
         reg_conf.readable_reg = readable_reg;
 
