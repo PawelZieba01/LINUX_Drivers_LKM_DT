@@ -1,3 +1,6 @@
+/* Dzięki tej definicji, funkcja pr_info doklei na początku każdej wiadomości nazwę naszego modułu */
+#define pr_fmt(fmt) KBUILD_MODNAME ": " fmt
+
 #include <linux/module.h>
 #include <linux/init.h>
 #include <linux/cdev.h>
@@ -7,8 +10,6 @@ MODULE_LICENSE("GPL");
 MODULE_AUTHOR("Paweł Zięba  AGH UST  2024");
 MODULE_DESCRIPTION("Prosty moduł z obsługą wywołań systemowych open() i close() ");
 
-/* Dzięki tej definicji, funkcja pr_info doklei na początku każdej wiadomości nazwę naszego modułu */
-#define pr_fmt(fmt) KBUILD_MODNAME ": " fmt
 
 #define MY_MAJOR 30
 #define MY_DEV_NAME "my_open_close_dev"
@@ -44,7 +45,7 @@ static struct file_operations fops = {
 /* Funkcja wykonywana podczas ładowania modułu do jądra linux */
 static int __init on_init(void)
 {
-        int status;
+        int ret;
 
         pr_info("Module init.\n");
 
@@ -52,12 +53,12 @@ static int __init on_init(void)
         *  Rejestracja urządzenia w jądrze linux
         *  Podanie 0 jako numer major, spowoduje dynamiczne pozyskanie tego numeru, wtedy funkcja go zwróci
         */
-        status = register_chrdev(MY_MAJOR, MY_DEV_NAME, &fops);
-        if (status < 0) {
+        ret = register_chrdev(MY_MAJOR, MY_DEV_NAME, &fops);
+        if (ret < 0) {
                 pr_info("Nie udało zarejestrować urządzenia\n");
                 return -1;
-        } else if (status > 0) {            /* Udało się dynamicznie zarejestrować urządzenie*/
-                my_dev_major = status;
+        } else if (ret > 0) {            /* Udało się dynamicznie zarejestrować urządzenie*/
+                my_dev_major = ret;
         } else {                            /* Jeśli funkcja zwróci 0, to udało się zarejestrować urządzenie pod podanym numerem*/
                 my_dev_major = MY_MAJOR;
         }
