@@ -1,4 +1,3 @@
-#include <linux/module.h>
 #include <linux/init.h>
 #include <linux/cdev.h>
 #include <linux/fs.h>
@@ -9,8 +8,6 @@ MODULE_LICENSE("GPL");
 MODULE_AUTHOR("Paweł Zięba  AGH UST  2024");
 MODULE_DESCRIPTION("Prosty moduł z obsługą wywołań systemowych open(), close(), read() i write()");
 
-/* Dzięki tej definicji, funkcja pr_info doklei na początku każdej wiadomości nazwę naszego modułu */
-#define pr_fmt(fmt) KBUILD_MODNAME ": " fmt
 
 #define BUFF_LENGTH 128
 #define MY_DEV_NAME "my_read_write_dev"
@@ -67,37 +64,64 @@ static ssize_t device_read(struct file *filp, char *buf, size_t count, loff_t *f
 
 /* Struktura przechowująca informacje o operacjach możliwych do wykonania na pliku urządzenia */
 static struct file_operations fops = {
-        .owner=THIS_MODULE,
-        .open=device_open,
-        .release=device_close,
-        .write=device_write,
-        .read=device_read
+        .owner = THIS_MODULE,
+        .open = device_open,
+        .release = device_close,
+        .write = device_write,
+        .read = device_read
 };
 
 
 /* Funkcja wykonywana podczas ładowania modułu do jądra linux */
 static int __init on_init(void)
 {
+        int ret;
         pr_info("Module init.\n");
 
         /* Zaalokowanie numerów MAJOR i MINOR dla urządzenia */
-        alloc_chrdev_region(&my_devt, 0, 1, MY_DEV_NAME);
-
+        ret = alloc_chrdev_region(&my_devt, 0, 1, MY_DEV_NAME);
+        if (ret) {
+                pr_err("Can't allocate chrdev.\n");
+                goto err_alloc;
+        }
+        
         /* Stworzenie klasy urządzeń, widocznej w /sys/class */
         my_class = class_create(THIS_MODULE, MY_CLASS_NAME);
+        if (IS_ERR(my_class)) {
+                pr_err("Can't create class.\n");
+                goto err_class;
+        }
 
         /* Inicjalizacja urządzenia znakowego - podpięcie funkcji do operacji na plikach (file operations) */
         cdev_init(&my_cdev, &fops);
 
         /* Dodanie urządzenia do systemu */
-        cdev_add(&my_cdev, my_devt, 1);
+        ret = cdev_add(&my_cdev, my_devt, 1);
+        if (ret) {
+                pr_err("Can't add device to system.\n");
+                goto err_cdev;
+        }
 
         /* Stworzenie pliku w przestrzeni użytkownika (w /dev), reprezentującego urządzenie */
         my_device = device_create(my_class, NULL, my_devt, NULL, MY_DEV_NAME);
-
+        if (IS_ERR(my_device)) {
+                pr_err("Can't create device.\n");
+                goto err_dev;
+        }
 
         pr_info("Alocated device MAJOR number: %d\n", MAJOR(my_devt));
         return 0;
+
+
+err_dev:
+        cdev_del(&my_cdev);
+err_cdev:
+        class_unregister(my_class);
+        class_destroy(my_class);
+err_class:
+        unregister_chrdev_region(my_devt, 1);
+err_alloc:
+        return -1;
 }
 
 
