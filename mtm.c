@@ -15,13 +15,21 @@ DEVICE_ATTR_RO(mtm_param);
 
 static int mtm_probe(struct platform_device *dev)
 {
+        int ret;
+
         dev_info(&dev->dev, "probed\n");
 
         /* Utworzenie pliku reprezentującego atrybut */
-        device_create_file(&dev->dev, &dev_attr_mtm_param);
+        ret = device_create_file(&dev->dev, &dev_attr_mtm_param);
+        if (ret) {
+               dev_err(&dev->dev, "Can't create attribute file\n");
+               return ret;
+        }
 
         mtm_param_instances++;
+
         dev_info(&dev->dev, "mtm_param: %lu\n", mtm_param_instances);
+
         return 0;
 }
 
