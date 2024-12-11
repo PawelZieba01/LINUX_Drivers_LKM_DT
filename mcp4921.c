@@ -37,18 +37,17 @@ static void mcp4921_remove(struct spi_device *dev)
 
 
 static const struct of_device_id mcp4921_of_id[] = {
-        { .compatible = "microchip,mcp4921_dac" },
+        { .compatible = "microchip,mcp4921" },
         {},
 };
 MODULE_DEVICE_TABLE(of, mcp4921_of_id);
 
 
 static struct spi_driver mcp4921_driver = {
-        //.id_table = my_dac;
         .probe = mcp4921_probe,
         .remove = mcp4921_remove,
         .driver = {
-                .name = "mcp4921_dac",
+                .name = "mcp4921",
                 .of_match_table = mcp4921_of_id,
                 .owner = THIS_MODULE,
         },
