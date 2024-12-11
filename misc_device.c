@@ -4,13 +4,9 @@
 #include <linux/fs.h>
 #include <linux/uaccess.h>
 
-
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("Paweł Zięba  AGH UST  2024");
 MODULE_DESCRIPTION("Prosty sterownik misc device");
-
-/* Dzięki tej definicji, funkcja pr_info doklei na początku każdej wiadomości nazwę naszego modułu */
-#define pr_fmt(fmt) KBUILD_MODNAME ": " fmt
 
 #define BUFF_LENGTH 128
 #define MY_DEV_NAME "my_misc_dev"
@@ -61,11 +57,11 @@ static ssize_t misc_read(struct file *filp, char *buf, size_t count, loff_t *f_p
 
 /* Struktura przechowująca informacje o operacjach możliwych do wykonania na pliku urządzenia */
 static struct file_operations fops = {
-        .owner=THIS_MODULE,
-        .open=misc_open,
-        .release=misc_close,
-        .write=misc_write,
-        .read=misc_read
+        .owner = THIS_MODULE,
+        .open = misc_open,
+        .release = misc_close,
+        .write = misc_write,
+        .read = misc_read
 };
 
 
@@ -79,15 +75,14 @@ struct miscdevice misc_device = {
 /* Funkcja wykonywana podczas ładowania modułu do jądra linux */
 static int __init on_init(void)
 {
-        int res;
+        int ret;
 
         pr_info("Module init.\n");
 
-        res = misc_register(&misc_device);
-
-        if (res) {
+        ret = misc_register(&misc_device);
+        if (ret) {
                 pr_err("Misc device registration failed!");
-                return res;
+                return ret;
         }
         
         return 0;
