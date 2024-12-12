@@ -103,67 +103,69 @@ static ssize_t mcp4921_write(struct file *filp, const char *buf,
 }
 
 
-static long mcp4921_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
+static long mcp4921_ioctl(struct file *file, unsigned int cmd,
+                          unsigned long arg)
 {
         int res, value;
 
         switch(cmd) {
-                
-                case DAC_RESET:
-                        pr_info("DAC_RESET command\n");
-                        mcp4921_data.vref_buf_bit = 0;
-                        mcp4921_data.gain_bit = 1;
-                        mcp4921_data.enable_bit = 1;
-                        break;
+        case DAC_RESET:
+                pr_info("DAC_RESET command\n");
+                mcp4921_data.vref_buf_bit = 0;
+                mcp4921_data.gain_bit = 1;
+                mcp4921_data.enable_bit = 1;
+                break;
 
-                case DAC_ENABLE:
-                        pr_info("DAC_ENABLE command\n");
-                        mcp4921_data.enable_bit = 1;
-                        break;
+        case DAC_ENABLE:
+                pr_info("DAC_ENABLE command\n");
+                mcp4921_data.enable_bit = 1;
+                break;
 
-                case DAC_DISABLE:
-                        pr_info("DAC_DISABLE command\n");
-                        mcp4921_data.enable_bit = 0;
-                        break;
+        case DAC_DISABLE:
+                pr_info("DAC_DISABLE command\n");
+                mcp4921_data.enable_bit = 0;
+                break;
 
-                case DAC_GAIN:
-                        pr_info("DAC_GAIN command\n");
+        case DAC_GAIN:
+                pr_info("DAC_GAIN command\n");
 
-                        res = copy_from_user(&value, (unsigned long*)arg, sizeof(value));
-                        if (res) {
-                                pr_err("DAC GAIN bit set error!\n");
-                                return -EIO;
-                        }
+                res = copy_from_user(&value, (unsigned long*)arg,
+                                              sizeof(value));
+                if (res) {
+                        pr_err("DAC GAIN bit set error!\n");
+                        return -EIO;
+                }
 
-                        if(value != 0 && value != 1) {
-                                pr_err("DAC GAIN bit wrong value!\n");
-                                return -EINVAL;
-                        }
+                if(value != 0 && value != 1) {
+                        pr_err("DAC GAIN bit wrong value!\n");
+                        return -EINVAL;
+                }
 
-                        pr_info("Set DAC GAIN bit to: %d\n", value);
-                        mcp4921_data.gain_bit = value;
-                        break;
+                pr_info("Set DAC GAIN bit to: %d\n", value);
+                mcp4921_data.gain_bit = value;
+                break;
 
-                case DAC_VREF_BUFF:
-                        pr_info("DAC_VREF_BUFF command\n");
+        case DAC_VREF_BUFF:
+                pr_info("DAC_VREF_BUFF command\n");
 
-                        res = copy_from_user(&value, (unsigned long*)arg, sizeof(value));
-                        if (res) {
-                                pr_err("DAC VREF_BUFF bit set error!\n");
-                                return -EIO;
-                        }
+                res = copy_from_user(&value, (unsigned long*)arg,
+                                              sizeof(value));
+                if (res) {
+                        pr_err("DAC VREF_BUFF bit set error!\n");
+                        return -EIO;
+                }
 
-                        if(value != 0 && value != 1) {
-                                pr_err("DAC VREF_BUFF bit wrong value!\n");
-                                return -EINVAL;
-                        }
+                if(value != 0 && value != 1) {
+                        pr_err("DAC VREF_BUFF bit wrong value!\n");
+                        return -EINVAL;
+                }
 
-                        pr_info("Set DAC VREF_BUFF bit to: %d\n", value);
-                        mcp4921_data.vref_buf_bit = value;
-                        break;
+                pr_info("Set DAC VREF_BUFF bit to: %d\n", value);
+                mcp4921_data.vref_buf_bit = value;
+                break;
 
-                default:
-                        break;
+        default:
+                break;
         }
         return 0;
 }
