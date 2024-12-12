@@ -10,23 +10,21 @@ if(len(args) < 2):
 GENERIC_WRITE           = 0x40000000
 GENERIC_INT_SIZE        = 0x00040000
 
-FILE_PATH = "/dev/dac_mcp4921"
+FILE_PATH = "/dev/mcp4921"
 
 CMD_RESET       = ord("k") << 8 | 0
-CMD_ENABLE      = ord("k") << 8 | 1
-CMD_DISABLE     = ord("k") << 8 | 2
-
 #              ioctl write code  size
-CMD_GAIN        = GENERIC_WRITE | GENERIC_INT_SIZE | ord("k") << 8 | 3
-CMD_VREF_BUFF   = GENERIC_WRITE | GENERIC_INT_SIZE | ord("k") << 8 | 4
+CMD_ENABLE      = GENERIC_WRITE | GENERIC_INT_SIZE | ord("k") << 8 | 1
+CMD_GAIN        = GENERIC_WRITE | GENERIC_INT_SIZE | ord("k") << 8 | 2
+CMD_VREF_BUFF   = GENERIC_WRITE | GENERIC_INT_SIZE | ord("k") << 8 | 3
 
 
 fd = open(FILE_PATH, "w")
 
 if (args[1] == "EN"):
-        fcntl.ioctl(fd, CMD_ENABLE, 0)
-elif (args[1] == "DIS"):
-        fcntl.ioctl(fd, CMD_DISABLE, 0)
+        value = int(args[2])
+        buf = array.array('l', [value])
+        fcntl.ioctl(fd, CMD_ENABLE, buf)
 elif (args[1] == "RESET"):
         fcntl.ioctl(fd, CMD_RESET, 0)
 elif (args[1] == "GAIN"):
