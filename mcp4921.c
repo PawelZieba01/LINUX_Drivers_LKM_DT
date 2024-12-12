@@ -4,7 +4,7 @@
 
 
 #define MY_DEV_NAME "mcp4921"
-#define DAC_MCP4921_REF_VOLTAGE_mV 3300
+#define MCP4921_REF_VOLTAGE_mV 3300
 #define MCP4921_CFG_BITS (0x03 << 12)           /* Kanal A, Unbuffered Vref,
                                                    Gain=1, DAC Enable */
 #define BINARY_VAL_FOR_1mV 0x9ee0               /* unsigned Q1.15 -> 1,2412
@@ -72,7 +72,7 @@ static ssize_t mcp4921_write(struct file *filp, const char *buf,
                 return err;
         }
 
-        if (voltage_mV < 0  ||  voltage_mV > DAC_MCP4921_REF_VOLTAGE_mV) {
+        if (voltage_mV < 0  ||  voltage_mV > MCP4921_REF_VOLTAGE_mV) {
                 dev_err(dev, "Bad voltage value.\n");
                 return -EINVAL;
         }
@@ -126,7 +126,7 @@ static int mcp4921_probe(struct spi_device *dev)
         data = devm_kzalloc(&dev->dev, sizeof(struct mcp4921_data), GFP_KERNEL);
         if (IS_ERR(data)) {
                dev_err(&dev->dev, "Can't allocate memory for device data");
-               return -ENOMEM;
+               goto err_alloc;
         }
 
         data->mdev.minor = MISC_DYNAMIC_MINOR;
@@ -136,13 +136,17 @@ static int mcp4921_probe(struct spi_device *dev)
         err = misc_register(&data->mdev);
         if (err) {
                 pr_err("Misc device registration failed!");
-                return err;
+                goto err_misc;
         }
 
         data->spidev = dev;
         dev_set_drvdata(&dev->dev, data);
                 
         return 0;
+
+err_misc:
+err_alloc:
+        return -1;
 }
 
 
