@@ -3,22 +3,24 @@
 #include <linux/miscdevice.h>
 
 
-#define MY_DEV_NAME "dac_mcp4921"
-#define SPI_BUS 0
+#define MY_DEV_NAME "mcp4921"
 #define DAC_MCP4921_REF_VOLTAGE_mV 3300
 #define MCP4921_CFG_BITS (0x03 << 12)           /* Kanal A, Unbuffered Vref,
                                                    Gain=1, DAC Enable */
 #define BINARY_VAL_FOR_1mV 0x9ee0               /* unsigned Q1.15 -> 1,2412
                                                    (1mV to wartość 1,2412 
                                                    dla przetwornika) */
-#define MAX_WRITE_SIZE 10                       /* 4 znaki na liczbę i jeden 
-                                                   znak Null */                                                   
+#define MAX_WRITE_SIZE 10                                                                         
 
 
-static struct spi_device *mcp4921_spi_dev;
+struct mcp4921_data {
+        struct spi_device *spidev;
+        struct miscdevice *mdev;
+        long int voltage_mV;
+};
 
 
-void mcp4921_set(unsigned int voltage_12bit)
+int mcp4921_set(struct spi_device *dev, unsigned int voltage_12bit)
 {
         unsigned int data = MCP4921_CFG_BITS | (voltage_12bit & 0x0fff);
         unsigned char spi_buff[2];
@@ -26,11 +28,11 @@ void mcp4921_set(unsigned int voltage_12bit)
         spi_buff[0] = ( (data & 0xff00) >> 8 );
         spi_buff[1] = ( data & 0x00ff );
 
-        spi_write(mcp4921_spi_dev, spi_buff, 2);
+        return spi_write(dev, spi_buff, 2);
 }
 
 
-void mcp4921_set_mV(unsigned int voltage_mV)
+int mcp4921_set_mV(struct spi_device *dev, unsigned int voltage_mV)
 {
         /* Konwersja Q16.15 do Q16.0 */
         unsigned int voltage_12bit = (((unsigned long)voltage_mV *
@@ -39,7 +41,7 @@ void mcp4921_set_mV(unsigned int voltage_mV)
         pr_info("Set voltage to %d [mV]\n", voltage_mV);
         pr_info("Set voltage to %d [12bit]\n", voltage_12bit);
 
-        mcp4921_set(voltage_12bit);
+        return mcp4921_set(dev, voltage_12bit);
 }
 
 
@@ -47,86 +49,125 @@ void mcp4921_set_mV(unsigned int voltage_mV)
 static ssize_t mcp4921_write(struct file *filp, const char *buf,
                            size_t count, loff_t *f_pos) 
 {
+        struct mcp4921_data *data = filp->private_data;
+        struct device *dev = &data->spidev->dev;
         char kspace_buffer[MAX_WRITE_SIZE] = "";
-        int voltage_mV, ret;
+        int voltage_mV, err;
 
-        pr_info("Write to device file.\n");
+        dev_info(dev, "Write to device file.\n");
 
         if (count > MAX_WRITE_SIZE) {
-                pr_err("Bad input number.\n");
+                dev_err(dev, "Bad input number.\n");
                 return -ERANGE;
         }
 
         if (copy_from_user(kspace_buffer, buf, count)) {
-                pr_err("Can't copy data from user space\n");
+                dev_err(dev, "Can't copy data from user space.\n");
                 return -EFAULT;		
         }
 
-        pr_info("%s\n", kspace_buffer);
-
-        ret = kstrtol(kspace_buffer, 0, (long*)&voltage_mV);
-        if (ret) {
-                pr_err("Can't convert data to integer\n");
-                return ret;
+        err = kstrtol(kspace_buffer, 0, (long*)&voltage_mV);
+        if (err) {
+                dev_err(dev, "Can't convert data to integer.\n");
+                return err;
         }
 
         if (voltage_mV < 0  ||  voltage_mV > DAC_MCP4921_REF_VOLTAGE_mV) {
-                pr_err("Bad voltage value\n");
+                dev_err(dev, "Bad voltage value.\n");
                 return -EINVAL;
         }
 
-        mcp4921_set_mV(voltage_mV);
+        mcp4921_set_mV(data->spidev, voltage_mV);
 
         return count;
 }
 
 
+int mcp4921_open(struct inode *node, struct file *filp)
+{
+        struct mcp4921_data *data = container_of(filp->private_data,
+                                                 struct mcp4921_data,
+                                                 mdev);
+
+        dev_info(&data->spidev->dev, "Driver file open\n");
+
+        filp->private_data = data;
+        return 0;
+}
+
+
+int mcp4921_release(struct inode *node, struct file *filp)
+{
+        struct mcp4921_data *data = container_of(filp->private_data,
+                                                 struct mcp4921_data,
+                                                 mdev);
+
+        dev_info(&data->spidev->dev, "Driver file close\n");
+
+        filp->private_data = NULL;
+        return 0;
+}
+
+
 static struct file_operations fops = {
-        .owner=THIS_MODULE,
-        .write=mcp4921_write
-};
-
-
-struct miscdevice mcp4921_device = {
-    .minor = MISC_DYNAMIC_MINOR,
-    .name = MY_DEV_NAME,
-    .fops = &fops,
+        .owner = THIS_MODULE,
+        .write = mcp4921_write,
+        .open = mcp4921_open,
+        .release = mcp4921_release
 };
 /*----------------------------------------------------------------------*/
 
 
-
-
 static int mcp4921_probe(struct spi_device *dev)
 {
-        int res;
+        int err;
+        struct miscdevice *mdev;
+        struct mcp4921_data *data;
         
         dev_info(&dev->dev, "SPI DAC Driver Probed\n");
 
-        mcp4921_spi_dev = dev;
-
-        res = misc_register(&mcp4921_device);
-        if (res) {
-                pr_err("Misc device registration failed!");
-                return res;
+        mdev = devm_kzalloc(&dev->dev, sizeof(struct miscdevice), GFP_KERNEL);
+        if (IS_ERR(mdev)) {
+               dev_err(&dev->dev, "Can't allocate memory for miscdevice");
+               return -ENOMEM;
         }
-        
+
+        data = devm_kzalloc(&dev->dev, sizeof(struct mcp4921_data), GFP_KERNEL);
+        if (IS_ERR(data)) {
+               dev_err(&dev->dev, "Can't allocate memory for device data");
+               return -ENOMEM;
+        }
+
+        mdev->minor = MISC_DYNAMIC_MINOR;
+        mdev->name = MY_DEV_NAME;
+        mdev->fops = &fops;
+
+        err = misc_register(mdev);
+        if (err) {
+                pr_err("Misc device registration failed!");
+                return err;
+        }
+
+        data->mdev = mdev;
+        data->spidev = dev;
+        dev_set_drvdata(&dev->dev, data);
+                
         return 0;
 }
 
 
 static void mcp4921_remove(struct spi_device *dev)
 {
+        struct mcp4921_data *data = dev_get_drvdata(&dev->dev);
         dev_info(&dev->dev, "SPI DAC Driver Removed\n");
-        misc_deregister(&mcp4921_device);
-        
+        misc_deregister(data->mdev);        
 }
 
 
 
 
 static const struct of_device_id mcp4921_of_id[] = {
-        { .compatible = "microchip,mcp4921_dac" },
+        { .compatible = "microchip,mcp4921" },
         {},
 };
 MODULE_DEVICE_TABLE(of, mcp4921_of_id);   
@@ -136,7 +177,7 @@ static struct spi_driver mcp4921_driver = {
         .probe = mcp4921_probe,
         .remove = mcp4921_remove,
         .driver = {
-                .name = "mcp4921_dac",
+                .name = "mcp4921",
                 .of_match_table = mcp4921_of_id,
                 .owner = THIS_MODULE,
         },
