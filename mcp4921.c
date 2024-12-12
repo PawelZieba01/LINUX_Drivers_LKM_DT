@@ -84,13 +84,13 @@ static ssize_t mcp4921_write(struct file *filp, const char *buf,
 
 
 int mcp4921_open(struct inode *node, struct file *filp)
-{
+{       //????????????????? dlaczego to działa ???????????????
         struct mcp4921_data *data = container_of(filp->private_data,
                                                  struct mcp4921_data,
                                                  mdev);
 
         dev_info(&data->spidev->dev, "Driver file open\n");
-
+        
         filp->private_data = data;
         return 0;
 }
@@ -123,12 +123,6 @@ static int mcp4921_probe(struct spi_device *dev)
         
         dev_info(&dev->dev, "SPI DAC Driver Probed\n");
 
-        // mdev = devm_kzalloc(&dev->dev, sizeof(struct miscdevice), GFP_KERNEL);
-        // if (IS_ERR(mdev)) {
-        //        dev_err(&dev->dev, "Can't allocate memory for miscdevice");
-        //        return -ENOMEM;
-        // }
-
         data = devm_kzalloc(&dev->dev, sizeof(struct mcp4921_data), GFP_KERNEL);
         if (IS_ERR(data)) {
                dev_err(&dev->dev, "Can't allocate memory for device data");
@@ -145,7 +139,6 @@ static int mcp4921_probe(struct spi_device *dev)
                 return err;
         }
 
-        //data->mdev = mdev;
         data->spidev = dev;
         dev_set_drvdata(&dev->dev, data);
                 
@@ -159,8 +152,6 @@ static void mcp4921_remove(struct spi_device *dev)
         dev_info(&dev->dev, "SPI DAC Driver Removed\n");
         misc_deregister(&data->mdev);        
 }
-
-
 
 
 static const struct of_device_id mcp4921_of_id[] = {
