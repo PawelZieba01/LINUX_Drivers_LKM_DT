@@ -15,7 +15,7 @@
 
 struct mcp4921_data {
         struct spi_device *spidev;
-        struct miscdevice *mdev;
+        struct miscdevice mdev;
         long int voltage_mV;
 };
 
@@ -38,9 +38,9 @@ int mcp4921_set_mV(struct spi_device *dev, unsigned int voltage_mV)
         unsigned int voltage_12bit = (((unsigned long)voltage_mV *
                                      (unsigned long)BINARY_VAL_FOR_1mV) >> 15);
         
-        pr_info("Set voltage to %d [mV]\n", voltage_mV);
-        pr_info("Set voltage to %d [12bit]\n", voltage_12bit);
-
+        dev_info(&dev->dev, "Set voltage to %d [mV]\n", voltage_mV);
+        dev_info(&dev->dev, "Set voltage to %d [12bit]\n", voltage_12bit);
+        
         return mcp4921_set(dev, voltage_12bit);
 }
 
@@ -98,10 +98,7 @@ int mcp4921_open(struct inode *node, struct file *filp)
 
 int mcp4921_release(struct inode *node, struct file *filp)
 {
-        struct mcp4921_data *data = container_of(filp->private_data,
-                                                 struct mcp4921_data,
-                                                 mdev);
-
+        struct mcp4921_data *data = filp->private_data;
         dev_info(&data->spidev->dev, "Driver file close\n");
 
         filp->private_data = NULL;
@@ -121,16 +118,16 @@ static struct file_operations fops = {
 static int mcp4921_probe(struct spi_device *dev)
 {
         int err;
-        struct miscdevice *mdev;
+        //struct miscdevice *mdev;
         struct mcp4921_data *data;
         
         dev_info(&dev->dev, "SPI DAC Driver Probed\n");
 
-        mdev = devm_kzalloc(&dev->dev, sizeof(struct miscdevice), GFP_KERNEL);
-        if (IS_ERR(mdev)) {
-               dev_err(&dev->dev, "Can't allocate memory for miscdevice");
-               return -ENOMEM;
-        }
+        // mdev = devm_kzalloc(&dev->dev, sizeof(struct miscdevice), GFP_KERNEL);
+        // if (IS_ERR(mdev)) {
+        //        dev_err(&dev->dev, "Can't allocate memory for miscdevice");
+        //        return -ENOMEM;
+        // }
 
         data = devm_kzalloc(&dev->dev, sizeof(struct mcp4921_data), GFP_KERNEL);
         if (IS_ERR(data)) {
@@ -138,17 +135,17 @@ static int mcp4921_probe(struct spi_device *dev)
                return -ENOMEM;
         }
 
-        mdev->minor = MISC_DYNAMIC_MINOR;
-        mdev->name = MY_DEV_NAME;
-        mdev->fops = &fops;
+        data->mdev.minor = MISC_DYNAMIC_MINOR;
+        data->mdev.name = MY_DEV_NAME;
+        data->mdev.fops = &fops;
 
-        err = misc_register(mdev);
+        err = misc_register(&data->mdev);
         if (err) {
                 pr_err("Misc device registration failed!");
                 return err;
         }
 
-        data->mdev = mdev;
+        //data->mdev = mdev;
         data->spidev = dev;
         dev_set_drvdata(&dev->dev, data);
                 
@@ -160,7 +157,7 @@ static void mcp4921_remove(struct spi_device *dev)
 {
         struct mcp4921_data *data = dev_get_drvdata(&dev->dev);
         dev_info(&dev->dev, "SPI DAC Driver Removed\n");
-        misc_deregister(data->mdev);        
+        misc_deregister(&data->mdev);        
 }
 
 
