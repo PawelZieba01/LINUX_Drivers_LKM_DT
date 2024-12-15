@@ -71,7 +71,7 @@ int mcp23s09_get_port(struct spi_device *dev, unsigned int *value)
         }
 
         err = spi_write_then_read(dev, &spi_tx_buff[3], 2,
-                                  &value, 1);
+                                  value, 1);
         if (err) {
                 dev_err(&dev->dev, "Can't communicate with device\n");
                 return -EIO;
@@ -141,7 +141,8 @@ static ssize_t mcp23s09_read(struct file *filp, char *buf, size_t count,
 
         sprintf(port_buf, "0x%X\n", data->port_state);
 
-        if (copy_to_user(buf, port_buf, strlen(port_buf)) != 0) {
+        err = copy_to_user(buf, port_buf, strlen(port_buf));
+        if (err) {
                 dev_err(dev, "Can't send data to userspace\n");
                 return -EIO;
         }
@@ -182,13 +183,6 @@ static struct file_operations fops = {
         .open = mcp23s09_open,
         .release = mcp23s09_release 
 };
-
-
-struct miscdevice mcp23s09_device = {
-    .minor = MISC_DYNAMIC_MINOR,
-    .name = MY_DEV_NAME,
-    .fops = &fops,
-};
 /*------------------------------------------------------------------*/
 
 
@@ -209,7 +203,7 @@ static int mcp23s09_probe(struct spi_device *dev)
         data->mdev.name = MY_DEV_NAME;
         data->mdev.fops = &fops;
 
-        err = misc_register(&mcp23s09_device);
+        err = misc_register(&data->mdev);
         if (err) {
                 dev_err(&dev->dev, "Misc device registration failed!/n");
                 goto err_misc;
@@ -228,9 +222,9 @@ err_alloc:
 
 static void mcp23s09_remove(struct spi_device *dev)
 {
+        struct mcp23s09_data *data = dev_get_drvdata(&dev->dev);
         dev_info(&dev->dev, "SPI IO Driver Removed\n");
-
-        misc_deregister(&mcp23s09_device);
+        misc_deregister(&data->mdev);
 }
 
 
