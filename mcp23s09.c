@@ -64,8 +64,7 @@ int mcp23s09_get_port(struct spi_device *dev, unsigned int *value)
                 return -EIO;
         }
 
-        err = spi_write_then_read(dev, &spi_tx_buff[3], 2,
-                                  &value, 1);
+        err = spi_write_then_read(dev, &spi_tx_buff[3], 2, value, 1);
         if (err) {
                 dev_err(&dev->dev, "Can't communicate with device\n");
                 return -EIO;
