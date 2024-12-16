@@ -11,8 +11,8 @@
                         #address-cells = <1>;
                         #size-cells = <0>;
                                 
-                        pcf8574_io: pcf8574_io@20{
-                                compatible = "microchip,pcf8574_io";
+                        pcf8574: pcf8574@20{
+                                compatible = "microchip,pcf8574";
                                 reg = <0x20>;
                                 status = "okay";
                         };
