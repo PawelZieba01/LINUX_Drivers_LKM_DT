@@ -1,4 +1,4 @@
-obj-m += gpio.o
+obj-m += my_gpio.o
 
 # Polecenie uruchamiające proces budowania modułu jądra linux
 # -C oznacza wykoannie polecenia make w podanej ścieżce (ścieżka do plików środowiska buildowania modułów)
