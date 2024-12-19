@@ -8,10 +8,9 @@
                 target-path = "/";
 
                 __overlay__ {
-                        mtm_gpio {
-                                compatible = "mtm,gpio";
-                                leds-gpios = <&gpio 22 0>, <&gpio 25 0>, 
-                                             <&gpio 5 0>, <&gpio 16 0>;
+                        my_gpio {
+                                compatible = "mtm,my_gpio";
+                                led-gpio = <&gpio 22 0>;
                                 btn-gpio = <&gpio 17 0>;
                         };
                 };
