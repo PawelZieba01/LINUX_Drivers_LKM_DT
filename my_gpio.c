@@ -7,6 +7,7 @@ struct my_gpio {
         struct gpio_desc *led;
         struct gpio_desc *btn;
         struct timer_list timer; 
+        struct platform_device *pdev;
 };
 
 static void my_gpio_timer_callback(struct timer_list * timer)
@@ -49,6 +50,7 @@ static int my_gpio_probe(struct platform_device *dev)
         timer_setup(&my_gpio->timer, &my_gpio_timer_callback, 0);
         mod_timer(&my_gpio->timer, jiffies + msecs_to_jiffies(100));
              
+        my_gpio->pdev = dev;
         dev_set_drvdata(&dev->dev, my_gpio);
         dev_info(&dev->dev, "probed\n");
 
