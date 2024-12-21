@@ -1,0 +1,32 @@
+/dts-v1/;
+/plugin/;
+
+/ {
+        compatible = "brcm,bcm2835";
+
+        fragment@0 {
+                target-path = "/";
+
+                __overlay__ {
+                        led0 {
+                                compatible = "mtm,my_gpio";
+                                led-gpio = <&my_gpio 22 0>;
+                        };
+
+                        led1 {
+                                compatible = "mtm,my_gpio";
+                                led-gpio = <&my_gpio 25 0>;
+                        };
+
+                        led2 {
+                                compatible = "mtm,my_gpio";
+                                led-gpio = <&my_gpio 5 0>;
+                        };
+
+                        led3 {
+                                compatible = "mtm,my_gpio";
+                                led-gpio = <&my_gpio 16 0>;
+                        };
+                };
+        };
+};

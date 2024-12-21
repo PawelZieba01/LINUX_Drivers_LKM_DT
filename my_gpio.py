@@ -6,7 +6,7 @@ curses.KEY_ENTER = 10
 
 class led_driver:
         def __init__(self, led):
-                self.LED_PATH = "/sys/devices/platform/led" + str(led) + "/value"
+                self.LED_PATH = "/sys/devices/platform/led" + str(led) + "/my_gpio_value"
         
         def __set_value(self, value):
                 file = open(self.LED_PATH, "w")
