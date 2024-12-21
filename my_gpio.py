@@ -5,7 +5,7 @@ LED_PATH = "/sys/devices/platform/led"
 
 
 def led_get_value(led):
-        path = LED_PATH + str(led) + "/value"
+        path = LED_PATH + str(led) + "/my_gpio_value"
         file = open(path, "r")
         value = file.readline()
         file.close()
@@ -14,7 +14,7 @@ def led_get_value(led):
 
 
 def led_set_value(led, value):
-        path = LED_PATH + str(led) + "/value"
+        path = LED_PATH + str(led) + "/my_gpio_value"
         file = open(path, "w")
         file.write(str(value))
         file.close()
