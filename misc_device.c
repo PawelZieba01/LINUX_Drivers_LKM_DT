@@ -14,29 +14,17 @@ MODULE_DESCRIPTION("Prosty sterownik misc device");
 static char dev_buffer[BUFF_LENGTH];
 
 
-/* Funkcja wywoływana podczas otwierania pliku urządzenia */
-static int misc_open(struct inode *device_file, struct file *instance)
-{
-        pr_info("Misc device file open.\n");
-        return 0;
-}
-
-
-/* Funkcja wywoływana podczas zamykania pliku urządzenia */
-static int misc_close(struct inode *device_file, struct file *instance)
-{
-        pr_info("Misc device file close.\n");
-        return 0;
-}
-
-
 /* Funkcja wywoływana podczas zapisywania do pliku urządzenia */
 static ssize_t misc_write(struct file *filp, const char *buf, size_t count, loff_t *f_pos)
 {
+        int err = 0;
         pr_info("Write to device file.\n");
        
-        if (copy_from_user(dev_buffer, buf, count) != 0)
-                return -EFAULT;
+        err = copy_from_user(dev_buffer, buf, count);
+        if (err) {
+                pr_err("Failed to copy data from userspace.\n");
+                return -EIO;
+        }
         dev_buffer[count] = '\0';
         
         return count;
@@ -46,20 +34,22 @@ static ssize_t misc_write(struct file *filp, const char *buf, size_t count, loff
 /* Funkcja wywoływana podczas czytania z pliku urządzenia */
 static ssize_t misc_read(struct file *filp, char *buf, size_t count, loff_t *f_pos)
 {
+        int err = 0;
         pr_info("Read from device file.\n");
 
-        if (copy_to_user(buf, dev_buffer, strlen(dev_buffer)) != 0)
+        err = copy_to_user(buf, dev_buffer, strlen(dev_buffer));
+        if (err) {
+                pr_err("Failed to copy data to userspace.\n");
                 return -EIO;
-
-        return strlen(dev_buffer);
+        }
+                
+        return count;
 }
 
 
 /* Struktura przechowująca informacje o operacjach możliwych do wykonania na pliku urządzenia */
 static struct file_operations fops = {
         .owner = THIS_MODULE,
-        .open = misc_open,
-        .release = misc_close,
         .write = misc_write,
         .read = misc_read
 };
@@ -75,17 +65,16 @@ struct miscdevice misc_device = {
 /* Funkcja wykonywana podczas ładowania modułu do jądra linux */
 static int __init on_init(void)
 {
-        int ret;
+        int err = 0;
 
         pr_info("Module init.\n");
 
-        ret = misc_register(&misc_device);
-        if (ret) {
+        err = misc_register(&misc_device);
+        if (err) {
                 pr_err("Misc device registration failed!");
-                return ret;
         }
-        
-        return 0;
+
+        return err;
 }
 
 
@@ -93,8 +82,7 @@ static int __init on_init(void)
 static void __exit on_exit(void)
 {
         pr_info("Module exit.\n"); 
-        
-        misc_deregister(&misc_device);
+         misc_deregister(&misc_device);
 }
 
 
