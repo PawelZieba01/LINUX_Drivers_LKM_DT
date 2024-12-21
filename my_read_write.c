@@ -40,10 +40,14 @@ static int device_close(struct inode *device_file, struct file *instance)
 /* Funkcja wywoływana podczas zapisywania do pliku urządzenia */
 static ssize_t device_write(struct file *filp, const char *buf, size_t count, loff_t *f_pos)
 {
+        int err = 0;
         pr_info("Write to device file.\n");
        
-        if (copy_from_user(dev_buffer, buf, count) != 0)
-                return -EFAULT;
+        err = copy_from_user(dev_buffer, buf, count);
+        if (err) {
+                pr_err("Failed to copy data from userspace.\n");
+                return -EIO;
+        }
         dev_buffer[count] = '\0';
         
         return count;
@@ -53,11 +57,15 @@ static ssize_t device_write(struct file *filp, const char *buf, size_t count, lo
 /* Funkcja wywoływana podczas czytania z pliku urządzenia */
 static ssize_t device_read(struct file *filp, char *buf, size_t count, loff_t *f_pos)
 {
+        int err = 0;
         pr_info("Read from device file.\n");
 
-        if (copy_to_user(buf, dev_buffer, strlen(dev_buffer)) != 0)
+        err = copy_to_user(buf, dev_buffer, strlen(dev_buffer));
+        if (err) {
+                pr_err("Failed to copy data to userspace.\n");
                 return -EIO;
-
+        }
+                
         return count;
 }
 
@@ -75,53 +83,56 @@ static struct file_operations fops = {
 /* Funkcja wykonywana podczas ładowania modułu do jądra linux */
 static int __init on_init(void)
 {
-        int ret;
+        int err = 0;
         pr_info("Module init.\n");
 
         /* Zaalokowanie numerów MAJOR i MINOR dla urządzenia */
-        ret = alloc_chrdev_region(&my_devt, 0, 1, MY_DEV_NAME);
-        if (ret) {
+        err = alloc_chrdev_region(&my_devt, 0, 1, MY_DEV_NAME);
+        if (err) {
                 pr_err("Can't allocate chrdev.\n");
-                goto err_alloc;
+                goto out_ret_err;
         }
         
         /* Stworzenie klasy urządzeń, widocznej w /sys/class */
         my_class = class_create(THIS_MODULE, MY_CLASS_NAME);
         if (IS_ERR(my_class)) {
                 pr_err("Can't create class.\n");
-                goto err_class;
+                err = PTR_ERR(my_class);
+                goto out_unregister_cdev;
         }
 
         /* Inicjalizacja urządzenia znakowego - podpięcie funkcji do operacji na plikach (file operations) */
         cdev_init(&my_cdev, &fops);
 
         /* Dodanie urządzenia do systemu */
-        ret = cdev_add(&my_cdev, my_devt, 1);
-        if (ret) {
+        err = cdev_add(&my_cdev, my_devt, 1);
+        if (err) {
                 pr_err("Can't add device to system.\n");
-                goto err_cdev;
+                goto out_class_delete;
         }
 
         /* Stworzenie pliku w przestrzeni użytkownika (w /dev), reprezentującego urządzenie */
         my_device = device_create(my_class, NULL, my_devt, NULL, MY_DEV_NAME);
         if (IS_ERR(my_device)) {
                 pr_err("Can't create device.\n");
-                goto err_dev;
+                err = PTR_ERR(my_device);
+                goto out_cdev_delete;
         }
 
         pr_info("Alocated device MAJOR number: %d\n", MAJOR(my_devt));
-        return 0;
+        
+        goto out_ret_err;
 
 
-err_dev:
+out_cdev_delete:
         cdev_del(&my_cdev);
-err_cdev:
+out_class_delete:
         class_unregister(my_class);
         class_destroy(my_class);
-err_class:
+out_unregister_cdev:
         unregister_chrdev_region(my_devt, 1);
-err_alloc:
-        return -1;
+out_ret_err:
+        return err;
 }
 
 
