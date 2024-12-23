@@ -3,30 +3,30 @@
 #include <linux/spi/spi.h>
 
 
-struct mcp4921_data {
+struct mcp4921 {
         struct spi_device *dev;
 };
 
 
 static int mcp4921_probe(struct spi_device *dev)
 {
-        struct mcp4921_data *data;
+        int err = 0;
+        struct mcp4921 *mcp4921;
+
+        mcp4921 = devm_kzalloc(&dev->dev, sizeof(struct mcp4921), GFP_KERNEL);
+        if (IS_ERR(mcp4921)) {
+               dev_err(&dev->dev, "Device data allocation failed.\n");
+               err = PTR_ERR(mcp4921);
+               goto out_ret_err;
+        }
+        
+        mcp4921->dev = dev;
+        dev_set_drvdata(&dev->dev, mcp4921);
 
         dev_info(&dev->dev, "SPI DAC Driver Probed\n");
 
-        data = devm_kzalloc(&dev->dev, sizeof(struct mcp4921_data), GFP_KERNEL);
-        if (IS_ERR(data)) {
-               dev_err(&dev->dev, "Can't allocate device data\n");
-               goto err_alloc;
-        }
-        
-        data->dev = dev;
-        dev_set_drvdata(&dev->dev, data);
-
-        return 0;
-
-err_alloc:
-        return -1;
+out_ret_err:
+        return err;
 }
 
 
