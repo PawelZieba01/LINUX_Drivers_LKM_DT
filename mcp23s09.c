@@ -3,18 +3,16 @@
 #include <linux/spi/spi.h>
 #include <linux/regmap.h>
 
-#define IO_WRITE_OPCODE 0x40
-#define IO_READ_OPCODE 0x41
-#define IO_DIR_REG 0x00
-#define IO_GPIO_REG 0x09
+#define MCP23S09_WRITE_OPCODE 0x40
+#define MCP23S09_READ_OPCODE 0x41
+#define MCP23S09_DIR_REG 0x00
+#define MCP23S09_GPIO_REG 0x09
 
-#define MY_DEV_NAME "mcp23s09"
-
-#define MAX_WRITE_SIZE 10
-#define MAX_READ_SIZE 7
+#define MCP23S09_MAX_WRITE_SIZE 7
+#define MCP23S09_MAX_READ_SIZE 7
 
 
-struct mcp23s09_data {
+struct mcp23s09 {
         struct spi_device *spidev;
         struct regmap *rmap;
         struct miscdevice mdev;
@@ -22,26 +20,26 @@ struct mcp23s09_data {
 };
 
 
-int mcp23s09_set_port(struct mcp23s09_data *data, unsigned int port_value)
+int mcp23s09_set_port(struct mcp23s09 *mcp23s09, unsigned int port_value)
 {               
-        int err;
-        struct device *dev = &data->spidev->dev;
-        struct regmap *rmap = data->rmap;
+        int err = 0;
 
-        dev_info(dev, "Set port value.\n");
+        dev_info(&mcp23s09->spidev->dev, "Set port value.\n");
 
         /* Ustawienie kierunku portu jako wyjście */
-        err = regmap_write(rmap, (IO_WRITE_OPCODE << 8 | IO_DIR_REG), 0x00);  
+        err = regmap_write(mcp23s09->rmap, (MCP23S09_WRITE_OPCODE << 8 | MCP23S09_DIR_REG), 0x00);  
         if (err) {
-                dev_err(dev, "SPI Communication write error.\n");
+                dev_err(&mcp23s09->spidev->dev,
+                        "SPI Communication write error.\n");
                 return err;
         }
 
         /* Ustawienie wartości portu */                     
-        err = regmap_write(rmap, (IO_WRITE_OPCODE << 8 | IO_GPIO_REG),
+        err = regmap_write(mcp23s09->rmap, (MCP23S09_WRITE_OPCODE << 8 | MCP23S09_GPIO_REG),
                            port_value);
         if (err) {
-                dev_err(dev, "SPI Communication write error.\n");
+                dev_err(&mcp23s09->spidev->dev,
+                        "SPI Communication write error.\n");
                 return err;
         }
 
@@ -49,26 +47,27 @@ int mcp23s09_set_port(struct mcp23s09_data *data, unsigned int port_value)
 }
 
 
-int mcp23s09_get_port(struct mcp23s09_data *data, unsigned int *value)
-{
-        int err;
-        struct device *dev = &data->spidev->dev;
-        struct regmap *rmap = data->rmap;
 
-        dev_info(dev, "Get port value.\n");
+int mcp23s09_get_port(struct mcp23s09 *mcp23s09, unsigned int *value)
+{
+        int err = 0;
+        
+        dev_info(&mcp23s09->spidev->dev, "Get port value.\n");
 
         /* Ustawienie kierunku portu jako wejście */
-        err = regmap_write(rmap, (IO_WRITE_OPCODE << 8 | IO_DIR_REG), 0xff);
+        err = regmap_write(mcp23s09->rmap, (MCP23S09_WRITE_OPCODE << 8 | MCP23S09_DIR_REG), 0xff);
         if (err) {
-                dev_err(dev, "SPI Communication write error.\n");
+                dev_err(&mcp23s09->spidev->dev,
+                        "SPI Communication write error.\n");
                 return err;
         }
 
         /* Odczyt wartości portu */  
-        err = regmap_read(rmap, (IO_READ_OPCODE << 8 | IO_GPIO_REG),
+        err = regmap_read(mcp23s09->rmap, (MCP23S09_READ_OPCODE << 8 | MCP23S09_GPIO_REG),
                           value);  
         if (err) {
-                dev_err(dev, "SPI Communication read error.\n");
+                dev_err(&mcp23s09->spidev->dev,
+                        "SPI Communication read error.\n");
                 return err;
         }
 
@@ -80,39 +79,43 @@ int mcp23s09_get_port(struct mcp23s09_data *data, unsigned int *value)
 static ssize_t mcp23s09_write(struct file *filp, const char *buf,
                            size_t count, loff_t *f_pos) 
 {
-        int err;
-        struct mcp23s09_data *data = filp->private_data;
-        struct device *dev = &data->spidev->dev; 
-        char kspace_buffer[MAX_WRITE_SIZE] = "";
+        int err = 0;
+        struct mcp23s09 *mcp23s09 = container_of(filp->private_data,
+                                                 struct mcp23s09, mdev);
+        char kspace_buffer[MCP23S09_MAX_WRITE_SIZE] = "";
+        int port_state;
 
-        dev_info(dev, "Write to device file.\n");
+        dev_info(&mcp23s09->spidev->dev, "Write to device file.\n");
 
-        if (count > MAX_WRITE_SIZE) {
-                dev_err(dev, "Bad input number.\n");
+        if (count > MCP23S09_MAX_WRITE_SIZE) {
+                dev_err(&mcp23s09->spidev->dev, "Bad input number.\n");
                 return -ERANGE;
         }
 
         if (copy_from_user(kspace_buffer, buf, count)) {
-                dev_err(dev, "Can't copy data from user space.\n");
+                dev_err(&mcp23s09->spidev->dev,
+                        "Getting data from userspace failed.\n");
                 return -EFAULT;		
         }
 
-        err = kstrtol(kspace_buffer, 0, (long*)&data->port_state);
+        err = kstrtol(kspace_buffer, 0, (long *) &port_state);
         if (err) {
-                dev_err(dev, "Can't convert data to integer.\n");
+                dev_err(&mcp23s09->spidev->dev,
+                        "Bad input number.\n");
                 return err;
         }
 
-        if (data->port_state < 0x00  ||  data->port_state > 0xff) {
-                dev_err(dev, "Bad port value.\n");
+        if (port_state < 0x00  ||  port_state > 0xff) {
+                dev_err(&mcp23s09->spidev->dev, "Bad voltage value\n");
                 return -EINVAL;
         }
 
-        err = mcp23s09_set_port(data, data->port_state);
+        err = mcp23s09_set_port(mcp23s09, port_state);
         if (err) {
-               dev_err(dev, "Can't set port.\n");
+               dev_err(&mcp23s09->spidev->dev, "Setting port value failed.\n");
                return -EIO;
         }
+
         return count;
 }
 
@@ -121,52 +124,29 @@ static ssize_t mcp23s09_write(struct file *filp, const char *buf,
 static ssize_t mcp23s09_read(struct file *filp, char *buf, size_t count,
                            loff_t *f_pos)
 {
-        int err;
-        unsigned char port_buf[MAX_READ_SIZE];
-        struct mcp23s09_data *data = filp->private_data;
-        struct device *dev = &data->spidev->dev; 
+        int err = 0;
+        unsigned char port_buf[MCP23S09_MAX_READ_SIZE];
+        struct mcp23s09 *mcp23s09 = container_of(filp->private_data,
+                                             struct mcp23s09, mdev);
 
-        dev_info(dev, "Read from device file.\n");
+        dev_info(&mcp23s09->spidev->dev, "Read from device file.\n");
 
-        err = mcp23s09_get_port(data, &data->port_state);
+        err = mcp23s09_get_port(mcp23s09, &mcp23s09->port_state);
         if (err) {
-               dev_err(dev, "Can't get port value.\n");
+               dev_err(&mcp23s09->spidev->dev, "Getting port value failed.\n");
                return err;
         }
 
-        sprintf(port_buf, "0x%X\n", data->port_state);
+        sprintf(port_buf, "0x%X\n", mcp23s09->port_state);
 
         err = copy_to_user(buf, port_buf, strlen(port_buf));
         if (err) {
-                dev_err(dev, "Can't send data to userspace.\n");
+                dev_err(&mcp23s09->spidev->dev,
+                        "Sending data to userspace failed\n");
                 return -EIO;
         }
                 
         return count;
-}
-
-
-int mcp23s09_open(struct inode *node, struct file *filp)
-{       
-        struct mcp23s09_data *data = container_of(filp->private_data,
-                                                 struct mcp23s09_data,
-                                                 mdev);
-
-        dev_info(&data->spidev->dev, "Driver file open.\n");
-        
-        filp->private_data = data;
-        return 0;
-}
-
-
-int mcp23s09_release(struct inode *node, struct file *filp)
-{
-        struct mcp23s09_data *data = filp->private_data;
-
-        dev_info(&data->spidev->dev, "Driver file close.\n");
-
-        filp->private_data = NULL;
-        return 0;
 }
 
 
@@ -176,9 +156,7 @@ static struct file_operations fops =
 {
         .owner = THIS_MODULE,
         .write = mcp23s09_write,
-        .read = mcp23s09_read,
-        .open = mcp23s09_open,
-        .release = mcp23s09_release 
+        .read = mcp23s09_read
 };
 /*------------------------------------------------------------------*/
 
@@ -187,44 +165,41 @@ static struct file_operations fops =
 static bool writeable_reg(struct device *dev, unsigned int reg)
 {
         switch (reg) {
-                case (IO_WRITE_OPCODE << 8 | IO_DIR_REG):
-                case (IO_WRITE_OPCODE << 8 | IO_GPIO_REG):
-                        return true;
+        case (MCP23S09_WRITE_OPCODE << 8 | MCP23S09_DIR_REG):
+        case (MCP23S09_WRITE_OPCODE << 8 | MCP23S09_GPIO_REG):
+                return true;
         }
         return false;
 }
   
 static bool readable_reg(struct device *dev, unsigned int reg)
 {
-        if (reg == (IO_READ_OPCODE << 8 | IO_GPIO_REG))
-                return true;
-        return false;
+        return (reg == (MCP23S09_READ_OPCODE << 8 | MCP23S09_GPIO_REG));
 }
 /*------------------------------------------------------------------*/
 
 
 static int mcp23s09_probe(struct spi_device *dev)
 {
-        int err;
-        struct mcp23s09_data *data;
+        int err = 0;
+        struct mcp23s09 *mcp23s09;
         struct regmap_config reg_conf;
-
-        dev_info(&dev->dev, "SPI IO Driver Probed.\n");
-        
-        data = devm_kzalloc(&dev->dev, sizeof(struct mcp23s09_data),
+              
+        mcp23s09 = devm_kzalloc(&dev->dev, sizeof(struct mcp23s09),
                             GFP_KERNEL);
-        if (IS_ERR(data)) {
-               dev_err(&dev->dev, "Can't allocate memory for device data.\n");
-               goto err_alloc;
+        if (IS_ERR(mcp23s09)) {
+               dev_err(&dev->dev, "Device data allocation failed.\n");
+               err = PTR_ERR(mcp23s09);
+               goto out_ret_err;
         }            
 
-        data->mdev.minor = MISC_DYNAMIC_MINOR;
-        data->mdev.name = MY_DEV_NAME;
-        data->mdev.fops = &fops;
-        err = misc_register(&data->mdev);
+        mcp23s09->mdev.minor = MISC_DYNAMIC_MINOR;
+        mcp23s09->mdev.name = "mcp23s09";
+        mcp23s09->mdev.fops = &fops;
+        err = misc_register(&mcp23s09->mdev);
         if (err) {
                 dev_err(&dev->dev, "Misc device registration failed.\n");
-                goto err_misc;
+                goto out_ret_err;
         }
 
         /* regmap config */
@@ -236,30 +211,31 @@ static int mcp23s09_probe(struct spi_device *dev)
         reg_conf.write_flag_mask = 0x40;
 
         /* regmap init */
-        data->rmap = devm_regmap_init_spi(dev, &reg_conf);
-        if (IS_ERR(data->rmap)) {
-                dev_err(&dev->dev, "Can't init spi regmap.\n");
-                goto err_rmap;
+        mcp23s09->rmap = devm_regmap_init_spi(dev, &reg_conf);
+        if (IS_ERR(mcp23s09->rmap)) {
+                dev_err(&dev->dev, "Regmap initialization failed.\n");
+                err = PTR_ERR(mcp23s09->rmap);
+                goto out_deregister_misc;
         }
 
-        data->spidev = dev;
-        dev_set_drvdata(&dev->dev, data);
-        
-        return 0;
+        mcp23s09->spidev = dev;
+        dev_set_drvdata(&dev->dev, mcp23s09);
 
+        dev_info(&dev->dev, "SPI IO Driver Probed.\n");
+        goto out_ret_err;
 
-err_rmap:
-err_misc:
-err_alloc:
-        return -1;
+out_deregister_misc:
+        misc_deregister(&mcp23s09->mdev);
+out_ret_err:
+        return err;
 }
 
 
 static void mcp23s09_remove(struct spi_device *dev)
 {
-        struct mcp23s09_data *data = dev_get_drvdata(&dev->dev);
+        struct mcp23s09 *mcp23s09 = dev_get_drvdata(&dev->dev);
+        misc_deregister(&mcp23s09->mdev);
         dev_info(&dev->dev, "SPI IO Driver Removed\n");
-        misc_deregister(&data->mdev);
 }
 
 
