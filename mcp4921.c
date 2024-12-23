@@ -4,14 +4,14 @@
 
 #define MCP4921_CFG_BITS (0x03 << 12)   /* Kanal A, Unbuffered Vref, 
                                         Gain=1, DAC Enable */
-#define BINARY_VAL_FOR_1mV 0x9ee0       /* unsigned Q1.15 -> 1,2412     
+#define MCP4921_BIN_VAL_FOR_1mV 0x9ee0  /* unsigned Q1.15 -> 1,2412     
                                         (1mV to wartość 1,2412 
                                         dla przetwornika) */
 
 
-struct mcp4921_data {
+struct mcp4921 {
         struct spi_device *dev;
-        long int voltage_mV;
+        unsigned int voltage_mV;
 };
 
 
@@ -30,80 +30,77 @@ int mcp4921_set(struct spi_device *dev, unsigned int voltage_12bit)
 int mcp4921_set_mV(struct spi_device *dev, unsigned int voltage_mV)
 {
          /* Konwersja Q16.15 do Q16.0 */
-        unsigned int voltage_12bit = (((unsigned long)voltage_mV *
-                                     (unsigned long)BINARY_VAL_FOR_1mV) >> 15);
+        unsigned int voltage_12bit = ((voltage_mV *
+                                      MCP4921_BIN_VAL_FOR_1mV) >> 15);
         return mcp4921_set(dev, voltage_12bit);
 }
 
 
-static ssize_t voltage_mV_store(struct device *dev,
-                                    struct device_attribute *attr,
-                                    const char *buf, size_t count)
+static ssize_t mcp4921_voltage_mV_store(struct device *dev,
+                                        struct device_attribute *attr,
+                                        const char *buf, size_t count)
 {
-        int err;
-        struct mcp4921_data *data = dev_get_drvdata(dev);
+        int err = 0;
+        struct mcp4921 *mcp4921 = dev_get_drvdata(dev);
 
-        err = kstrtol(buf, 0, &data->voltage_mV);
+        err = kstrtol(buf, 0, (unsigned long *)&mcp4921->voltage_mV);
         if (err) {
-                dev_err(dev, "Can't convert str to int\n");
+                dev_err(dev, "Bad input value.\n");
                 return -EINVAL;
         }
         
-        if (data->voltage_mV < 0  ||  data->voltage_mV > 3300) {
+        if (mcp4921->voltage_mV < 0  ||  mcp4921->voltage_mV > 3300) {
                 dev_err(dev, "Bad voltage value\n");
                 return -EINVAL;
         }
                 
-        err = mcp4921_set_mV(data->dev, data->voltage_mV);
+        err = mcp4921_set_mV(mcp4921->dev, mcp4921->voltage_mV);
         if (err) {
-               dev_err(dev, "Can't communicate with mcp4921\n");
+               dev_err(dev, "Communication with mcp4921 failed\n");
                return err;
         }
 
         return count;
 }
 
-DEVICE_ATTR_WO(voltage_mV);
+DEVICE_ATTR_WO(mcp4921_voltage_mV);
 /*---------------------------------------------------*/
 
 
 static int mcp4921_probe(struct spi_device *dev)
 {
-        int err;
-        struct mcp4921_data *data;
-
-        dev_info(&dev->dev, "SPI DAC Driver Probed\n");
-        
-        /* Utworzenie pliku reprezentującego atrybut urządzenia */
-        err = device_create_file(&dev->dev, &dev_attr_voltage_mV);
-        if (err) {
-               dev_err(&dev->dev, "Can't create device attribute file\n");
-               goto err_attr;
-        }
+        int err = 0;
+        struct mcp4921 *mcp4921;
 
         /* Zarezerwowanie pamięci dla danych urządzenia */
-        data = devm_kzalloc(&dev->dev, sizeof(struct mcp4921_data), GFP_KERNEL);
-        if (IS_ERR(data)) {
-               dev_err(&dev->dev, "Can't allocate device data\n");
-               goto err_alloc;
+        mcp4921 = devm_kzalloc(&dev->dev, sizeof(struct mcp4921), GFP_KERNEL);
+        if (IS_ERR(mcp4921)) {
+               dev_err(&dev->dev, "Device data allocation failed.\n");
+               err = PTR_ERR(mcp4921);
+               goto out_ret_err;
         }
+        
+        /* Utworzenie pliku reprezentującego atrybut urządzenia */
+        err = device_create_file(&dev->dev, &dev_attr_mcp4921_voltage_mV);
+        if (err) {
+               dev_err(&dev->dev, "Device attribute file creation failed.\n");
+               goto out_ret_err;
+        }
+      
+        mcp4921->dev = dev;
+        dev_set_drvdata(&dev->dev, mcp4921);
 
-        data->dev = dev;
-        dev_set_drvdata(&dev->dev, data);
+        dev_info(&dev->dev, "SPI DAC Driver Probed\n");
 
-        return 0;
-
-err_alloc:
-        device_remove_file(&dev->dev, &dev_attr_voltage_mV);
-err_attr:
-        return -1;
+out_ret_err:
+        return err;
 }
 
 
 static void mcp4921_remove(struct spi_device *dev)
 {
+        device_remove_file(&dev->dev, &dev_attr_mcp4921_voltage_mV);
         dev_info(&dev->dev, "SPI DAC Driver Removed\n");
-        device_remove_file(&dev->dev, &dev_attr_voltage_mV);
 }
 
 
