@@ -3,6 +3,7 @@
 #include <linux/miscdevice.h>
 #include <linux/ioctl.h>
 #include <linux/uaccess.h>
+#include "mcp4921_commands.h"
 
 
 #define MY_DEV_NAME "mcp4921"
@@ -14,12 +15,6 @@
                                                    dla przetwornika) */
 #define MAX_WRITE_SIZE 10                       /* 4 znaki na liczbę i jeden 
                                                    znak Null */   
-
-#define MCP4921_RESET _IO('k', 0)
-#define MCP4921_ENABLE _IOW('k', 1, int)
-#define MCP4921_GAIN _IOW('k', 2, int)
-#define MCP4921_VREF_BUFF _IOW('k', 3, int)
-
 
 struct mcp4921_data {
         struct spi_device *spidev;

@@ -42,3 +42,5 @@ else:
         print("Bad argument")
 
 fd.close()
+
+## Przerobić na C, tak aby tylko ustawiać bity i napięcie
