@@ -1,31 +1,29 @@
 #include <linux/spi/spi.h>
-#include <linux/cdev.h>
 #include <linux/miscdevice.h>
 #include <linux/ioctl.h>
-#include <linux/uaccess.h>
 #include "mcp4921_commands.h"
 
 
-#define MY_DEV_NAME "mcp4921"
 #define MCP4921_REF_VOLTAGE_mV 3300
 #define MCP4921_CFG_BITS (0x03 << 12)           /* Kanal A, Unbuffered Vref,
                                                    Gain=1, DAC Enable */
 #define BINARY_VAL_FOR_1mV 0x9ee0               /* unsigned Q1.15 -> 1,2412
                                                    (1mV to wartość 1,2412 
                                                    dla przetwornika) */
-#define MAX_WRITE_SIZE 10                       /* 4 znaki na liczbę i jeden 
+#define MCP4921_MAX_WRITE_SIZE 8                /* 4 znaki na liczbę i jeden 
                                                    znak Null */   
 
-struct mcp4921_data {
+struct mcp4921 {
         struct spi_device *spidev;
         struct miscdevice mdev;
+        int voltage_mV;
         bool vref_buf_bit;
         bool gain_bit;
         bool enable_bit;
 };
 
 
-int mcp4921_set(struct mcp4921_data *dev_data, unsigned int voltage_12bit)
+int mcp4921_set(struct mcp4921 *dev_data, unsigned int voltage_12bit)
 {
 
         unsigned int cfg_bits = (dev_data->vref_buf_bit << 14) |
@@ -41,7 +39,7 @@ int mcp4921_set(struct mcp4921_data *dev_data, unsigned int voltage_12bit)
 }
 
 
-int mcp4921_set_mV(struct mcp4921_data *dev_data, unsigned int voltage_mV)
+int mcp4921_set_mV(struct mcp4921 *dev_data, unsigned int voltage_mV)
 {
         /* Konwersja Q16.15 do Q16.0 */
         unsigned int voltage_12bit = (((unsigned long)voltage_mV *
@@ -55,35 +53,38 @@ int mcp4921_set_mV(struct mcp4921_data *dev_data, unsigned int voltage_mV)
 static ssize_t mcp4921_write(struct file *filp, const char *buf,
                            size_t count, loff_t *f_pos) 
 {
-        struct mcp4921_data *data = filp->private_data;
-        struct device *dev = &data->spidev->dev;
-        char kspace_buffer[MAX_WRITE_SIZE] = "";
-        int voltage_mV, err;
+        int err = 0;
+        char kspace_buffer[MCP4921_MAX_WRITE_SIZE] = "";
+        int voltage_mV;
+        struct mcp4921 *mcp4921 = container_of(filp->private_data,
+                                                 struct mcp4921, mdev);
 
-        dev_info(dev, "Write to device file.\n");
+        dev_info(&mcp4921->spidev->dev, "Write to device file.\n");
 
-        if (count > MAX_WRITE_SIZE) {
-                dev_err(dev, "Bad input number.\n");
+        if (count > MCP4921_MAX_WRITE_SIZE) {
+                dev_err(&mcp4921->spidev->dev, "Bad input number.\n");
                 return -ERANGE;
         }
 
         if (copy_from_user(kspace_buffer, buf, count)) {
-                dev_err(dev, "Can't copy data from user space.\n");
+                dev_err(&mcp4921->spidev->dev,
+                        "Getting data from userspace failed.\n");
                 return -EFAULT;		
         }
 
-        err = kstrtol(kspace_buffer, 0, (long*)&voltage_mV);
+        err = kstrtol(kspace_buffer, 0, (unsigned long *) &voltage_mV);
         if (err) {
-                dev_err(dev, "Can't convert data to integer.\n");
+                dev_err(&mcp4921->spidev->dev, "Bad input value.\n");
                 return err;
         }
 
         if (voltage_mV < 0  ||  voltage_mV > MCP4921_REF_VOLTAGE_mV) {
-                dev_err(dev, "Bad voltage value.\n");
+                dev_err(&mcp4921->spidev->dev, "Bad voltage value.\n");
                 return -EINVAL;
         }
 
-        mcp4921_set_mV(data, voltage_mV);
+        mcp4921->voltage_mV = voltage_mV;
+        mcp4921_set_mV(mcp4921, voltage_mV);
 
         return count;
 }
@@ -92,55 +93,77 @@ static ssize_t mcp4921_write(struct file *filp, const char *buf,
 static long mcp4921_ioctl(struct file *filp, unsigned int cmd,
                           unsigned long arg)
 {
-        int value;
-        struct mcp4921_data *data = filp->private_data;
-        struct device *dev = &data->spidev->dev;
+        
+        struct mcp4921 *mcp4921 = container_of(filp->private_data,
+                                                 struct mcp4921, mdev);
+        int value = 0;
+
+        if (arg) 
+                value = *(unsigned long *)arg;
 
         switch(cmd) {
         case MCP4921_RESET:
-                dev_info(dev, "MCP4921_RESET command\n");
+                dev_info(&mcp4921->spidev->dev, "MCP4921_RESET command\n");
 
-                data->vref_buf_bit = 0;
-                data->gain_bit = 1;
-                data->enable_bit = 1;
+                mcp4921->vref_buf_bit = 0;
+                mcp4921->gain_bit = 1;
+                mcp4921->enable_bit = 1;
                 break;
 
         case MCP4921_ENABLE:
-                dev_info(dev, "MCP4921_ENABLE command\n");
+                dev_info(&mcp4921->spidev->dev, "MCP4921_ENABLE command\n");
 
-                value = *(unsigned long*)arg;
-                if(value != 0 && value != 1) {
-                        dev_err(dev, "ENABLE bit wrong value!\n");
+                if (!arg) {
+                        dev_err(&mcp4921->spidev->dev, "Bad arg.\n");
                         return -EINVAL;
                 }
 
-                data->enable_bit = value;
+                if (value != 0 && value != 1) {
+                        dev_err(&mcp4921->spidev->dev,
+                                "ENABLE bit wrong value!\n");
+                        return -EINVAL;
+                }
+
+                mcp4921->enable_bit = value;
                 break;
 
         case MCP4921_GAIN:
-                dev_info(dev, "MCP4921_GAIN command\n");
+                dev_info(&mcp4921->spidev->dev, "MCP4921_GAIN command\n");
 
-                value = *(unsigned long*)arg;
-                if(value != 0 && value != 1) {
-                        dev_err(dev, "GAIN bit wrong value!\n");
+                if (!arg) {
+                        dev_err(&mcp4921->spidev->dev, "Bad arg.\n");
                         return -EINVAL;
                 }
 
-                dev_info(dev, "Set GAIN bit to: %d\n", value);
-                data->gain_bit = value;
+                if (value != 0 && value != 1) {
+                        dev_err(&mcp4921->spidev->dev,
+                                "GAIN bit wrong value!\n");
+                        return -EINVAL;
+                }
+
+                dev_info(&mcp4921->spidev->dev,
+                         "Set GAIN bit to: %d\n", value);
+                mcp4921->gain_bit = value;
                 break;
 
         case MCP4921_VREF_BUFF:
-                dev_info(dev, "MCP4921_VREF_BUFF command\n");
+                dev_info(&mcp4921->spidev->dev,
+                         "MCP4921_VREF_BUFF command\n");
 
-                value = *(unsigned long*)arg;
-                if(value != 0 && value != 1) {
-                        dev_err(dev, "VREF_BUFF bit wrong value!\n");
+                if (!arg) {
+                        dev_err(&mcp4921->spidev->dev, "Bad arg.\n");
                         return -EINVAL;
                 }
 
-                dev_info(dev, "Set VREF_BUFF bit to: %d\n", value);
-                data->vref_buf_bit = value;
+                if (value != 0 && value != 1) {
+                        dev_err(&mcp4921->spidev->dev,
+                                "VREF_BUFF bit wrong value!\n");
+                        return -EINVAL;
+                }
+
+                dev_info(&mcp4921->spidev->dev,
+                         "Set VREF_BUFF bit to: %d\n", value);
+                mcp4921->vref_buf_bit = value;
                 break;
 
         default:
@@ -150,36 +173,10 @@ static long mcp4921_ioctl(struct file *filp, unsigned int cmd,
 }
 
 
-int mcp4921_open(struct inode *node, struct file *filp)
-{       
-        struct mcp4921_data *data = container_of(filp->private_data,
-                                                 struct mcp4921_data,
-                                                 mdev);
-
-        dev_info(&data->spidev->dev, "Driver file open\n");
-        
-        filp->private_data = data;
-        return 0;
-}
-
-
-int mcp4921_release(struct inode *node, struct file *filp)
-{
-        struct mcp4921_data *data = filp->private_data;
-
-        dev_info(&data->spidev->dev, "Driver file close\n");
-
-        filp->private_data = NULL;
-        return 0;
-}
-
-
 static struct file_operations fops = {
         .owner=THIS_MODULE,
         .write=mcp4921_write,
-        .unlocked_ioctl = mcp4921_ioctl,
-        .open = mcp4921_open,
-        .release = mcp4921_release
+        .unlocked_ioctl = mcp4921_ioctl
 };
 /*----------------------------------------------------------------------*/
 
@@ -188,46 +185,44 @@ static struct file_operations fops = {
 
 static int mcp4921_probe(struct spi_device *dev)
 {
-        int err;
-        //struct miscdevice *mdev;
-        struct mcp4921_data *data;
+        int err = 0;
+        struct mcp4921 *mcp4921;
         
-        dev_info(&dev->dev, "SPI DAC Driver Probed\n");
-
-        data = devm_kzalloc(&dev->dev, sizeof(struct mcp4921_data), GFP_KERNEL);
-        if (IS_ERR(data)) {
-               dev_err(&dev->dev, "Can't allocate memory for device data");
-               goto err_alloc;
+        mcp4921 = devm_kzalloc(&dev->dev, sizeof(struct mcp4921), GFP_KERNEL);
+        if (IS_ERR(mcp4921)) {
+               dev_err(&dev->dev, "Device data allocation failed.\n");
+               err = PTR_ERR(mcp4921);
+               goto out_ret_err;
         }
 
-        data->mdev.minor = MISC_DYNAMIC_MINOR;
-        data->mdev.name = MY_DEV_NAME;
-        data->mdev.fops = &fops;
+        /* miscdevice config */
+        mcp4921->mdev.minor = MISC_DYNAMIC_MINOR;
+        mcp4921->mdev.name = "mcp4921";
+        mcp4921->mdev.fops = &fops;
 
-        err = misc_register(&data->mdev);
+        err = misc_register(&mcp4921->mdev);
         if (err) {
-                pr_err("Misc device registration failed!");
-                goto err_misc;
+                dev_err(&dev->dev, "Misc device registration failed.\n");
+                goto out_ret_err;
         }
 
-        data->spidev = dev;
-        data->gain_bit = 1;
-        data->enable_bit = 1;
-        dev_set_drvdata(&dev->dev, data);
+        mcp4921->spidev = dev;
+        mcp4921->gain_bit = 1;
+        mcp4921->enable_bit = 1;
+        dev_set_drvdata(&dev->dev, mcp4921);
                 
-        return 0;
+        dev_info(&dev->dev, "SPI DAC Driver Probed.\n");
 
-err_misc:
-err_alloc:
-        return -1;
+out_ret_err:
+        return err;
 }
 
 
 static void mcp4921_remove(struct spi_device *dev)
 {
-        struct mcp4921_data *data = dev_get_drvdata(&dev->dev);
-        dev_info(&dev->dev, "SPI DAC Driver Removed\n");
-        misc_deregister(&data->mdev);        
+        struct mcp4921 *mcp4921 = dev_get_drvdata(&dev->dev);
+        misc_deregister(&mcp4921->mdev);
+        dev_info(&dev->dev, "SPI DAC Driver Removed.\n"); 
 }
 
 
