@@ -1,3 +1,5 @@
+#!/usr/bin/python
+
 from time import sleep
 import curses
 from math import floor
