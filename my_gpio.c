@@ -34,7 +34,7 @@ static ssize_t my_gpio_value_store(struct device *dev,
         }
                 
         gpiod_set_value(my_gpio->led, value);
-        return err;
+        return count;
 }
 DEVICE_ATTR_RW(my_gpio_value);
 
