@@ -15,18 +15,25 @@ DEVICE_ATTR_RO(mtm_param);
 
 static int mtm_probe(struct platform_device *dev)
 {
-        struct device_node * sMyNode = dev->dev.of_node;
-        uint32_t param;
+        int err = 0;
+        uint32_t int_param;
+
+        /* Odczyt własności urządzenia z DT */
+        err = of_property_read_u32(dev->dev.of_node, "int_param", &int_param);
+        if (err) {
+                dev_err(&dev->dev, "Could not get param from dt node.\n");
+                goto out_ret_err;
+        }
+
+        dev_info(&dev->dev, "int_param: %d\n", int_param);
+        
+        /* Utworzenie pliku reprezentującego atrybut w przestrzeni użytkownika */
+        device_create_file(&dev->dev, &dev_attr_mtm_param);
 
         dev_info(&dev->dev, "probed\n");
 
-        /* Odczyt własności urządzenia z DT */
-        of_property_read_u32(sMyNode, "int_param", &param);
-        pr_info("int_param: %d\n", param);
-
-        /* Utworzenie pliku reprezentującego atrybut w przestrzeni użytkownika */
-        device_create_file(&dev->dev, &dev_attr_mtm_param);
-        return 0;
+out_ret_err:
+        return err;
 }
 
 
@@ -51,7 +58,7 @@ static struct platform_driver mtm_driver = {
         .probe = mtm_probe,
         .remove = mtm_remove,
         .driver = {
-                .name = "mtm_device",
+                .name = "mtm_driver",
                 .of_match_table = mtm_of_id,
                 .owner = THIS_MODULE,
         },
