@@ -3,8 +3,7 @@
 #include <linux/spi/spi.h>
 #include <linux/regmap.h>
 
-#define MCP23S09_WRITE_OPCODE 0x40
-#define MCP23S09_READ_OPCODE 0x41
+#define MCP23S09_OPCODE 0x40
 #define MCP23S09_DIR_REG 0x00
 #define MCP23S09_GPIO_REG 0x09
 
@@ -27,7 +26,7 @@ int mcp23s09_set_port(struct mcp23s09 *mcp23s09, unsigned int port_value)
         dev_info(&mcp23s09->spidev->dev, "Set port value.\n");
 
         /* Ustawienie kierunku portu jako wyjście */
-        err = regmap_write(mcp23s09->rmap, (MCP23S09_WRITE_OPCODE << 8 | MCP23S09_DIR_REG), 0x00);  
+        err = regmap_write(mcp23s09->rmap, (MCP23S09_OPCODE << 8 | MCP23S09_DIR_REG), 0x00);  
         if (err) {
                 dev_err(&mcp23s09->spidev->dev,
                         "SPI Communication write error.\n");
@@ -35,7 +34,7 @@ int mcp23s09_set_port(struct mcp23s09 *mcp23s09, unsigned int port_value)
         }
 
         /* Ustawienie wartości portu */                     
-        err = regmap_write(mcp23s09->rmap, (MCP23S09_WRITE_OPCODE << 8 | MCP23S09_GPIO_REG),
+        err = regmap_write(mcp23s09->rmap, (MCP23S09_OPCODE << 8 | MCP23S09_GPIO_REG),
                            port_value);
         if (err) {
                 dev_err(&mcp23s09->spidev->dev,
@@ -55,7 +54,7 @@ int mcp23s09_get_port(struct mcp23s09 *mcp23s09, unsigned int *value)
         dev_info(&mcp23s09->spidev->dev, "Get port value.\n");
 
         /* Ustawienie kierunku portu jako wejście */
-        err = regmap_write(mcp23s09->rmap, (MCP23S09_WRITE_OPCODE << 8 | MCP23S09_DIR_REG), 0xff);
+        err = regmap_write(mcp23s09->rmap, (MCP23S09_OPCODE << 8 | MCP23S09_DIR_REG), 0xff);
         if (err) {
                 dev_err(&mcp23s09->spidev->dev,
                         "SPI Communication write error.\n");
@@ -63,7 +62,7 @@ int mcp23s09_get_port(struct mcp23s09 *mcp23s09, unsigned int *value)
         }
 
         /* Odczyt wartości portu */  
-        err = regmap_read(mcp23s09->rmap, (MCP23S09_READ_OPCODE << 8 | MCP23S09_GPIO_REG),
+        err = regmap_read(mcp23s09->rmap, (MCP23S09_OPCODE << 8 | MCP23S09_GPIO_REG),
                           value);  
         if (err) {
                 dev_err(&mcp23s09->spidev->dev,
@@ -165,8 +164,8 @@ static struct file_operations fops =
 static bool writeable_reg(struct device *dev, unsigned int reg)
 {
         switch (reg) {
-        case (MCP23S09_WRITE_OPCODE << 8 | MCP23S09_DIR_REG):
-        case (MCP23S09_WRITE_OPCODE << 8 | MCP23S09_GPIO_REG):
+        case (MCP23S09_OPCODE << 8 | MCP23S09_DIR_REG):
+        case (MCP23S09_OPCODE << 8 | MCP23S09_GPIO_REG):
                 return true;
         }
         return false;
@@ -174,7 +173,7 @@ static bool writeable_reg(struct device *dev, unsigned int reg)
   
 static bool readable_reg(struct device *dev, unsigned int reg)
 {
-        return (reg == (MCP23S09_READ_OPCODE << 8 | MCP23S09_GPIO_REG));
+        return (reg == (MCP23S09_OPCODE << 8 | MCP23S09_GPIO_REG));
 }
 /*------------------------------------------------------------------*/
 
@@ -208,7 +207,7 @@ static int mcp23s09_probe(struct spi_device *dev)
         reg_conf.val_bits = 8;
         reg_conf.writeable_reg = writeable_reg;
         reg_conf.readable_reg = readable_reg;
-        reg_conf.write_flag_mask = 0x40;
+        reg_conf.read_flag_mask = 0x01;
 
         /* regmap init */
         mcp23s09->rmap = devm_regmap_init_spi(dev, &reg_conf);
